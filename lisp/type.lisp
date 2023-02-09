@@ -5,18 +5,24 @@
 
 (defun insert-char (buffer char pos)
   (concatenate 'string
-	       (subseq 0 cursor-pos)
+	       (subseq buffer 0 cursor-pos)
 	       (princ-to-string char)
-	       (subseq cursor-pos (length buffer))))
+	       (subseq buffer cursor-pos)))
+
+
+(defun delete-char (buffer pos)
+  (concatenate 'string
+	       (subseq buffer 0 pos)
+	       (subseq buffer (1+ pos))))
 
 (defun display (buffer cursor-pos)
   (set-cursor 0 0)
   (set-text-color black white)
   (fill-screen white)
   (with-gfx (out)
-    (princ (subseq 0 cursor-pos))
+    (princ (subseq buffer 0 cursor-pos) out)
     (princ #\176 out)
-    (princ (subseq cursor-pos (length buffer)))
+    (princ (subseq buffer cursor-pos) out)
     (refresh)))
 
 (defvar left #x11)
@@ -35,14 +41,17 @@
 	 ((not q) (if dirty (progn (display buffer cursor-pos) (setq dirty nil))))
 	 ((= q (char-code #\Escape)) (return buffer))
 	 ((= q (char-code #\Backspace))
-	  (setq buffer (subseq buffer 0 (1- (length buffer)))
-		(decf cursor-pos)
-		dirty t))
-	 ((= q left) (progn (decf cursor-pos) (setq dirty t)))
-	 ((= q right) (progn (incf cursor-pos) (setq dirty t)))
+	  (if (> cursor-pos 0)
+	      (setq buffer (delete-char buffer (1- cursor-pos))
+		    cursor-pos (1- cursor-pos)
+		    dirty t)))
+	 ((= q left) (setq cursor-pos (max 0 (1- cursor-pos))
+			   dirty t))
+	 ((= q right) (setq cursor-pos (min (length buffer) (1+ cursor-pos))
+			    dirty t))
 	 ((< q #xff)
-	  (setq buffer (insert-char buffer (code-char q))
-		(incf cursor-pos)
+	  (setq buffer (insert-char buffer (code-char q) cursor-pos)
+		cursor-pos (1+ cursor-pos)
 		dirty t)))))))
 
 (defun type () (edit ""))
