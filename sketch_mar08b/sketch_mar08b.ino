@@ -22,7 +22,7 @@ const char LispLibrary[] PROGMEM = "(loop (fill-screen 0) (refresh) (fill-screen
 // #define printgcs
 // #define sdcardsupport
 #define gfxsupport
-#define lisplibrary
+//#define lisplibrary
 #define assemblerlist
 // #define lineeditor
 // #define vt100

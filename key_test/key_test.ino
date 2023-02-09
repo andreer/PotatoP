@@ -169,15 +169,15 @@ void setupKeyboard() {
 }
 
 void setup( ) {
-  Serial.begin(115200);
-  while (!Serial) {
+//  Serial.begin(115200);
+//  while (!Serial) {
     ; // Wait for serial port to connect. Needed for native USB port only.
-  }
-  Serial.println("CTIMER will trigger an interrupt, calling the function my_isr at regular intervals.");
+//  }
+//  Serial.println("CTIMER will trigger an interrupt, calling the function my_isr at regular intervals.");
 
   setupKeyboard();
 
-  Serial.println("Set up keyboard");
+//  Serial.println("Set up keyboard");
 
   pinMode(SHARP_CS, OUTPUT);
   digitalWrite(SHARP_CS, LOW);
@@ -188,7 +188,7 @@ void setup( ) {
 
   display.begin();
 
-  Serial.println("Display initialized");
+//  Serial.println("Display initialized");
 
   display.clearDisplay();
 
@@ -199,14 +199,17 @@ void setup( ) {
   int t1 = micros();
 
   float ms = t1 - t0;
-  Serial.print("Called "); Serial.print(KEYEVENT_BUFFER_SIZE); Serial.print(" times in "); Serial.print(ms); Serial.println(" microseconds");
+//  Serial.print("Called "); Serial.print(KEYEVENT_BUFFER_SIZE); Serial.print(" times in "); Serial.print(ms); Serial.println(" microseconds");
 
-  Serial.print(ms / KEYEVENT_BUFFER_SIZE); Serial.println(" microseconds per iteration ");
+//  Serial.print(ms / KEYEVENT_BUFFER_SIZE); Serial.println(" microseconds per iteration ");
 
   //my_isr();
 
   display.fillCircle(display.width() - 25, display.height() - 25 , 24, BLACK);
   display.refresh();
+
+  am_hal_gpio_pinconfig(48, g_AM_HAL_GPIO_INPUT);
+  am_hal_gpio_pinconfig(49, g_AM_HAL_GPIO_INPUT);
 
   setupISR(); // timerNum, period, padNum
 }
@@ -226,7 +229,7 @@ void loop( ) {
   //Serial.println(readTo);
 
 //  display.fillCircle(display.width() - 25, display.height() - 25, 22, lastcolor);
-  display.refresh();
+//  display.refresh();
 
   if (lastcolor == BLACK) {
     lastcolor = WHITE;
@@ -234,14 +237,14 @@ void loop( ) {
     lastcolor = BLACK;
   }
 
-
+  int refresh = 1;
   uint32_t readTo = keyEventWritePtr;
   while (keyEventReadPtr < readTo) {
     int k = keyEvents[keyEventReadPtr % KEYEVENT_BUFFER_SIZE];
     keyEventReadPtr++;
 
     if (k < 0xff) {
-      Serial.print((char) k);
+//      Serial.print((char) k);
 
 
       if (k == '\n') {
@@ -253,11 +256,16 @@ void loop( ) {
         display.drawChar(textposx++ * (6 * scale), textposy * (8 * scale), (char)k, BLACK, WHITE, scale);
       }
     }
+    refresh = 1;
     //Serial.print("Read key event ");
     //Serial.print(keyEvents[keyEventReadPtr % KEYEVENT_BUFFER_SIZE]);
     //Serial.print(" from index ");
     //Serial.println(keyEventReadPtr % KEYEVENT_BUFFER_SIZE);
 
+  }
+
+  if (refresh == 1) {
+    display.refresh();
   }
 
 //    int num = millis();
@@ -285,13 +293,13 @@ void setupISR()
 
   NVIC_EnableIRQ(CTIMER_IRQn);
 
-  Serial.println("CTIMER started");
+//  Serial.println("CTIMER started");
 
   am_hal_ctimer_int_clear(AM_HAL_CTIMER_INT_TIMERA2);
   am_hal_ctimer_int_enable(AM_HAL_CTIMER_INT_TIMERA2);
   am_hal_ctimer_int_register(AM_HAL_CTIMER_INT_TIMERA2, my_isr);
 
-  Serial.print("Timer A");
-  Serial.print(timerNum);
-  Serial.println(" configured");
+//  Serial.print("Timer A");
+//  Serial.print(timerNum);
+//  Serial.println(" configured");
 }
