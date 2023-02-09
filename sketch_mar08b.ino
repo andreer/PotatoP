@@ -183,11 +183,12 @@ Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RS
   #define STACKDIFF 320
   #define CPU_RP2040
 
-// lol whatever?
 #elif defined(ARDUINO_APOLLO3_SFE_ARTEMIS_ATP)
-  #define WORKSPACESIZE 1000
-  #define STACKDIFF 160
-
+#include "BurstMode.h"
+  #define WORKSPACESIZE 30000
+  #define CODESIZE 256
+  #define STACKDIFF 320
+  #define CPU_APOLLO3
 #else
 #error "Board not supported!"
 #endif
@@ -305,7 +306,9 @@ DRAWLINE, DRAWRECT, FILLRECT, DRAWCIRCLE, FILLCIRCLE, DRAWROUNDRECT, FILLROUNDRE
 FILLTRIANGLE, DRAWCHAR, SETCURSOR, SETTEXTCOLOR, SETTEXTSIZE, SETTEXTWRAP, FILLSCREEN, SETROTATION,
 INVERTDISPLAY, KEYWORDS,
 K_LED_BUILTIN, K_HIGH, K_LOW,
-#if defined(CPU_ATSAMD21)
+#if defined(CPU_APOLLO3)
+K_INPUT, K_INPUT_PULLUP, K_INPUT_PULLDOWN, K_OUTPUT,
+#elif defined(CPU_ATSAMD21)
 K_INPUT, K_INPUT_PULLUP, K_INPUT_PULLDOWN, K_OUTPUT, K_AR_DEFAULT, K_AR_INTERNAL1V0, K_AR_INTERNAL1V65,
 K_AR_INTERNAL2V23, K_AR_EXTERNAL, K_PA_DIR, K_PA_DIRCLR, K_PA_DIRSET, K_PA_DIRTGL, K_PA_OUT, K_PA_OUTCLR,
 K_PA_OUTSET, K_PA_OUTTGL, K_PA_IN, K_PB_DIR, K_PB_DIRCLR, K_PB_DIRSET, K_PB_DIRTGL, K_PB_OUT, K_PB_OUTCLR,
@@ -4972,7 +4975,13 @@ const char string215[] PROGMEM = "";
 const char string216[] PROGMEM = ":led-builtin";
 const char string217[] PROGMEM = ":high";
 const char string218[] PROGMEM = ":low";
-#if defined(CPU_ATSAMD21)
+#if defined(CPU_APOLLO3)
+const char string219[] PROGMEM = ":input";
+const char string220[] PROGMEM = ":input-pullup";
+const char string221[] PROGMEM = ":input-pulldown";
+const char string222[] PROGMEM = ":output";
+const char string223[] PROGMEM = "";
+#elif defined(CPU_ATSAMD21)
 const char string219[] PROGMEM = ":input";
 const char string220[] PROGMEM = ":input-pullup";
 const char string221[] PROGMEM = ":input-pulldown";
@@ -5360,7 +5369,13 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string216, (fn_ptr_type)LED_BUILTIN, 0 },
   { string217, (fn_ptr_type)HIGH, DIGITALWRITE },
   { string218, (fn_ptr_type)LOW, DIGITALWRITE },
-#if defined(CPU_ATSAMD21)
+#if defined(CPU_APOLLO3)
+  { string219, (fn_ptr_type)INPUT, PINMODE },
+  { string220, (fn_ptr_type)INPUT_PULLUP, PINMODE },
+  { string221, (fn_ptr_type)INPUT_PULLDOWN, PINMODE },
+  { string222, (fn_ptr_type)OUTPUT, PINMODE },
+  { string223, NULL, 0x00 },
+#elif defined(CPU_ATSAMD21)
   { string219, (fn_ptr_type)INPUT, PINMODE },
   { string220, (fn_ptr_type)INPUT_PULLUP, PINMODE },
   { string221, (fn_ptr_type)INPUT_PULLDOWN, PINMODE },
@@ -5526,7 +5541,6 @@ const tbl_entry_t lookup_table[] PROGMEM = {
 #endif
 
 // Insert your own table entries here
-
 };
 
 // Table lookup functions
@@ -6266,7 +6280,8 @@ void initenv () {
 }
 
 void setup () {
-  Serial.begin(9600);
+  enableBurstMode();
+  Serial.begin(115200);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
   initworkspace();
