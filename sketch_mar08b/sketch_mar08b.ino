@@ -30,7 +30,7 @@ const char LispLibrary[] PROGMEM = "";
 #if defined(gfxsupport)
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_SharpMem.h> // Hardware-specific library for SHARP Memory displays
-#define COLOR_WHITE 0x1
+#define COLOR_WHITE 1
 #define COLOR_BLACK 0
 
 #define SPI_FREQ 2000000
@@ -46,6 +46,77 @@ extern "C" SPIName spi_get_peripheral_name(PinName mosi, PinName miso, PinName s
 //Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
 Adafruit_SharpMem tft(&mySPI, SHARP_CS, 320, 240, SPI_FREQ);
 #endif
+
+
+
+// Keyboard support
+
+#define KEYEVENT_BUFFER_SIZE 100
+volatile uint32_t keyEventWritePtr = 0;
+volatile uint32_t keyEventReadPtr = 0;
+volatile uint32_t keyEvents[KEYEVENT_BUFFER_SIZE];
+uint32_t keyEventNum = 0;
+
+#define ROWS 8
+#define COLS 14
+#define DEBOUNCE_CYCLES 1 // doesn't really do much with how slow the scanning is ...
+
+int rows[] = { 42, 43, 0, 1, 2, 45, 41, 17 };
+int cols[] = { 18, 19, 15, 26, 9, 10, 8, 14, 35, 4, 22, 23, 27, 28 };
+
+mbed::DigitalInOut* gpio[48];
+
+#define ___ "\xff"
+
+const char Keymap[] PROGMEM =
+
+// 0    1    2    3    4    5    6    7    8    9    a    b    c    d   //
+
+  ___  "."  "m"  "c"  "z"  ___  "\n" ___  ___  ","  "v"  "x"  ___  ___  // 0
+   
+  ___  "l"  "j"  "d"  "a"  ___  "\\" ___  ";"  "k"  "f"  "s"  ___  ___  // 1
+   
+  ___  ___  "n"  ___  ___  ___  " "  ___  "/"  ___  "b"  ___  ___  ___  // 2
+   
+  ___  ___  "h"  ___  "\e" ___  ___  ___  "'"  ___  "g"  ___  ___  ___  // 3
+   
+  ___  ___  "y"  ___  "\t" ___  "\b" ___  "["  "]"  "t"  ___  ___  ___  // 4
+   
+  ___  "9"  "7"  "3"  "1"  ___  ___  ___  "0"  "8"  "4"  "2"  ___  ___  // 5
+   
+  ___  "o"  "u"  "e"  "q"  ___  ___  ___  "p"  "i"  "r"  "w"  ___  ___  // 6
+   
+  ___  ___  "6"  ___  "`"  ___  ___  ___  "-"  "="  "5"  ___  ___  ___; // 7
+
+const char KeymapShifted[] PROGMEM =
+
+// 0    1    2    3    4    5    6    7    8    9    a    b    c    d   //
+
+  ___  ">"  "M"  "C"  "Z"  ___  "\n" ___  ___  "<"  "V"  "X"  ___  ___  // 0
+   
+  ___  "L"  "J"  "D"  "A"  ___  "|"  ___  ":"  "K"  "F"  "S"  ___  ___  // 1
+   
+  ___  ___  "N"  ___  "\e" ___  " "  ___  "?"  ___  "B"  ___  ___  ___  // 2
+   
+  ___  ___  "H"  ___  ___  ___  ___  ___  "\"" ___  "G"  ___  ___  ___  // 3
+   
+  ___  ___  "Y"  ___  "\t" ___  "\b" ___  "{"  "}"  "T"  ___  ___  ___  // 4
+   
+  ___  "("  "&"  "#"  "!"  ___  ___  ___  ")"  "*"  "$"  "@"  ___  ___  // 5
+   
+  ___  "O"  "U"  "E"  "Q"  ___  ___  ___  "P"  "I"  "R"  "W"  ___  ___  // 6
+   
+  ___  ___  "^"  ___  "~"  ___  ___  ___  "_"  "+"  "%"  ___  ___  ___; // 7
+
+
+//&Keymap[(3-row)*11 + column + 44*shift]
+
+uint8_t currentKeyState[COLS];
+uint8_t reportedKeyState[COLS];
+uint8_t reportKeyAgainIn[ROWS][COLS];
+
+
+// Keyboard support end
 
 #if defined(sdcardsupport)
 #include <SD.h>
@@ -357,7 +428,7 @@ K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_EXTERNAL,
 K_INPUT, K_INPUT_PULLUP, K_INPUT_PULLDOWN, K_OUTPUT, K_GPIO_IN, K_GPIO_OUT, K_GPIO_OUT_SET,
 K_GPIO_OUT_CLR, K_GPIO_OUT_XOR, K_GPIO_OE, K_GPIO_OE_SET, K_GPIO_OE_CLR, K_GPIO_OE_XOR,
 #endif
-REFRESH, USERFUNCTIONS, ENDFUNCTIONS, SET_SIZE = INT_MAX };
+REFRESH, GETKEY, USERFUNCTIONS, ENDFUNCTIONS, SET_SIZE = INT_MAX };
 
 // Global variables
 
@@ -5015,6 +5086,9 @@ object *fn_invertdisplay (object *args, object *env) {
   return nil;
 }
 
+
+// Insert your own function definitions here
+
 object *fn_refresh (object *args, object *env) {
   (void) env;
   #if defined(gfxsupport)
@@ -5025,8 +5099,17 @@ object *fn_refresh (object *args, object *env) {
   return nil;
 }
 
-// Insert your own function definitions here
-const char mystring1[] PROGMEM = "refresh";
+object *fn_getkey (object *args, object *env) {
+  (void) env;
+  (void) args;
+  uint32_t readTo = keyEventWritePtr;
+  if(keyEventReadPtr < readTo) {
+    int k = keyEvents[keyEventReadPtr % KEYEVENT_BUFFER_SIZE];
+    keyEventReadPtr++;
+    return number(k);
+  }
+  return nil;
+}
 
 // Built-in symbol names
 const char string0[] PROGMEM = "nil";
@@ -5429,6 +5512,9 @@ const char string241[] PROGMEM = "";
 #endif
 
 // Insert your own function names here
+
+const char mystring1[] PROGMEM = "refresh";
+const char mystring2[] PROGMEM = "get-key";
 
 // Documentation strings
 const char doc0[] PROGMEM = "nil\n"
@@ -5942,7 +6028,10 @@ const char doc223[] PROGMEM = "(invert-display boolean)\n"
 
 // Insert your own function documentation here
 const char mydoc[] PROGMEM = "(refresh)\n"
-"Triggers a refresh of the display";
+"Triggers a refresh of the display.";
+
+const char mydoc2[] PROGMEM = "(get-key)\n"
+"Returns a key event, or nil if there are no key events in the queue.";
 
 // Built-in symbol lookup table
 const tbl_entry_t lookup_table[] PROGMEM = {
@@ -6346,7 +6435,8 @@ const tbl_entry_t lookup_table[] PROGMEM = {
 #endif
 
 // Insert your own table entries here
-  { mystring1, fn_refresh, 0x00, mydoc }
+  { mystring1, fn_refresh, 0x00, mydoc },
+  { mystring2, fn_getkey, 0x00, mydoc2 }
 };
 
 // Table lookup functions
@@ -7112,14 +7202,133 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
+extern "C" void my_isr()
+{
+  keyEventNum++;
+  int i, j;
+
+  boolean shifted = (currentKeyState[5] != 0);
+
+  for (int i = 0; i < COLS; i++) {
+    currentKeyState[i] = 0;
+  }
+
+  for (i = 0; i < ROWS ; i++) {
+    int row = rows[i];
+    //    pinMode(row, OUTPUT);
+    gpio[row]->output();
+    //    am_hal_gpio_state_write(row, AM_HAL_GPIO_OUTPUT_CLEAR);
+    for (j = 0; j < COLS ; j++) {
+      int col = cols[j];
+
+      if (reportKeyAgainIn[i][j]) reportKeyAgainIn[i][j]--;
+
+      int keyState = am_hal_gpio_input_read(col);
+      //      int keyState = rand()%2;
+      //      int keyState = digitalRead(col);
+      //      int keyState = digitalRead(col);
+      currentKeyState[j] |= (!keyState) << i;
+
+      if (keyState == reportedKeyState[j] >> i) {
+        //        Serial.println(reportKeyAgainIn[i][j]);
+        if (reportKeyAgainIn[i][j] == 0) {
+          //          Serial.println("here");
+          if (keyState == 1) {
+            reportedKeyState[j] = reportedKeyState[j] & !(1 << i);
+          } else if (keyState == 0) {
+            reportedKeyState[j] = reportedKeyState[j] | (1 << i);
+          }
+          reportKeyAgainIn[i][j] = DEBOUNCE_CYCLES;
+          if (keyEventWritePtr >= keyEventReadPtr + KEYEVENT_BUFFER_SIZE) return; // we will lose keyEvents ...
+          keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = (keyState << 8) + (shifted ? KeymapShifted[i * COLS + j] : Keymap[i * COLS + j]);
+          keyEventWritePtr++;
+//                    Serial.printf("row %d, col %d is '", i, j);
+//                    Serial.print(Keymap[i * COLS + j]); Serial.println("'");
+        }
+      }
+    }
+    //    pinMode(row, INPUT);
+    gpio[row]->input();
+    //    am_hal_gpio_state_write(row, AM_HAL_GPIO_OUTPUT_TRISTATE_DISABLE);
+  }
+  //
+  //
+  //  Serial.print("Current: ");
+  //  for (int i = 0; i < COLS; i++) {
+  //    Serial.print(currentKeyState[i]);
+  //    Serial.print(" ");
+  //  }
+  //  Serial.println();
+  //
+  //  Serial.print("Reported: ");
+  //  for (int i = 0; i < COLS; i++) {
+  //    Serial.print(reportedKeyState[i]);
+  //    Serial.print(" ");
+  //  }
+  //  Serial.println();
+  //  Serial.println();
+  //  Serial.println();
+}
+
+void setupKeyboard() {
+  for (int i = 0; i < ROWS ; i++) {
+    pinMode(rows[i], OUTPUT);
+    digitalWrite(rows[i], LOW);
+    pinMode(rows[i], INPUT);
+    gpio[rows[i]] = new mbed::DigitalInOut(pinNameByIndex(pinIndexByNumber(rows[i])));
+    gpio[rows[i]]->input();
+    //am_hal_gpio_pinconfig(rows[i], g_AM_HAL_GPIO_OUTPUT);
+  }
+
+  for (int j = 0; j < COLS ; j++) {
+    pinMode(cols[j], INPUT_PULLUP);
+    //
+    //gpio[cols[j]] = new mbed::DigitalInOut(pinNameByIndex(pinIndexByNumber(cols[j])));
+    //am_hal_gpio_pinconfig(cols[j], g_AM_HAL_GPIO_INPUT_PULLUP_24);
+    am_hal_gpio_fastgpio_enable(cols[j]);
+  }
+}
+
+void setupISR()
+{
+  int timerNum = 2;
+  //  Configure timer.
+  //  Refer to Ambiq Micro Apollo3 Blue MCU datasheet section 13.2.2
+  //  and am_hal_ctimer.c line 710 of 2210.
+  am_hal_ctimer_config_single(timerNum, AM_HAL_CTIMER_TIMERA,
+                              AM_HAL_CTIMER_LFRC_512HZ |
+                              AM_HAL_CTIMER_FN_REPEAT |
+                              AM_HAL_CTIMER_INT_ENABLE);
+
+  //  Set the timing parameters.
+  //  32 Hz = 1 tick on and 1 tick off, so the interrupt will trigger at 16Hz
+  am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 1, 1);
+
+  am_hal_ctimer_start(timerNum, AM_HAL_CTIMER_TIMERA);
+
+  NVIC_EnableIRQ(CTIMER_IRQn);
+
+//  Serial.println("CTIMER started");
+
+  am_hal_ctimer_int_clear(AM_HAL_CTIMER_INT_TIMERA2);
+  am_hal_ctimer_int_enable(AM_HAL_CTIMER_INT_TIMERA2);
+  am_hal_ctimer_int_register(AM_HAL_CTIMER_INT_TIMERA2, my_isr);
+
+//  Serial.print("Timer A");
+//  Serial.print(timerNum);
+//  Serial.println(" configured");
+}
+
 void setup () {
-  Serial.begin(115200);
+  Serial.begin(9600);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
   initworkspace();
   initenv();
   initsleep();
   initgfx();
+  setupKeyboard();
+  setupISR();
   pfstring(PSTR("uLisp 4.3a "), pserial); pln(pserial);
 }
 
