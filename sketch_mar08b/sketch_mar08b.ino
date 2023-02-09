@@ -9,6 +9,7 @@
  TODO:
    - add error-handling code by Goheeca / mgr: http://forum.ulisp.com/t/error-handling-in-ulisp/691/3
    - add remaining modifiers (ctrl/alt/super/fn) to keymap (see gdoc)
+   - ensure screen is refreshed (or vcom toggled) at min 1Hz
 */
 
 // Lisp Library

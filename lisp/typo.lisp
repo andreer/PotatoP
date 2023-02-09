@@ -1,6 +1,8 @@
 ;; The humble beginnings of a text editor
 ;;
 ;; TODO:
+;;   - scrolling
+;;   - non-char cursor (reverse video?)
 ;;   - move to start/end of line
 ;;   - move by word
 ;;   - highlight matching paren/quote
@@ -10,15 +12,15 @@
 
 (defun insert-char (buffer char pos)
   (concatenate 'string
-	       (subseq buffer 0 cursor-pos)
-	       (princ-to-string char)
-	       (subseq buffer cursor-pos)))
+               (subseq buffer 0 cursor-pos)
+               (princ-to-string char)
+               (subseq buffer cursor-pos)))
 
 
 (defun delete-char (buffer pos)
   (concatenate 'string
-	       (subseq buffer 0 pos)
-	       (subseq buffer (1+ pos))))
+               (subseq buffer 0 pos)
+               (subseq buffer (1+ pos))))
 
 (defun display (buffer cursor-pos)
   (set-cursor 0 0)
@@ -49,32 +51,32 @@
      (if (eq ch (char buffer pos)) (return pos)))))
 
 (defun typo (buffer)
-  (let ((cursor-pos 0)
-	(dirty t))
-    (loop (if (not (get-key)) (return))) ; empty key buffer
+  (let ((pos 0)
+        (dirty t))
+    (loop (if (not (get-key)) (return)))
     (fill-screen white)
     (loop
      (let ((q (get-key)))
        (cond
-	 ((not q) (if dirty (progn (display buffer cursor-pos) (setq dirty nil))))
-	 ((= q (char-code #\Escape)) (return buffer))
-	 ((= q (char-code #\Backspace))
-	  (if (> cursor-pos 0)
-	      (setq buffer (delete-char buffer (1- cursor-pos))
-		    cursor-pos (1- cursor-pos)
-		    dirty t)))
-	 ((= q left) (setq cursor-pos (max 0 (1- cursor-pos))
-			   dirty t))
-	 ((= q right) (setq cursor-pos (min (length buffer) (1+ cursor-pos))
-			    dirty t))
-	 ((= q up) (setq cursor-pos (or (prev-pos buffer cursor-pos #\Newline) 0)
-			 dirty t))
-	 ((= q down) (setq cursor-pos (or (next-pos buffer cursor-pos #\Newline) (length buffer))
-			   dirty t))
-	 ((< q #xff)
-	  (setq buffer (insert-char buffer (code-char q) cursor-pos)
-		cursor-pos (1+ cursor-pos)
-		dirty t)))))))
+         ((not q) (if dirty (progn (display buffer pos) (setq dirty nil))))
+         ((= q (char-code #\Escape)) (return buffer))
+         ((= q (char-code #\Backspace))
+          (if (> pos 0)
+              (setq buffer (delete-char buffer (1- pos))
+                    pos (1- pos)
+                    dirty t)))
+         ((= q left) (setq pos (max 0 (1- pos))
+                           dirty t))
+         ((= q right) (setq pos (min (length buffer) (1+ pos))
+                            dirty t))
+         ((= q up) (setq pos (or (prev-pos buffer pos #\Newline) 0)
+                         dirty t))
+         ((= q down) (setq pos (or (next-pos buffer pos #\Newline) (length buffer))
+                           dirty t))
+         ((< q #xff)
+          (setq buffer (insert-char buffer (code-char q) pos)
+                pos (1+ pos)
+                dirty t)))))))
 
 (defun type () (typo ""))
 
@@ -89,9 +91,9 @@
      (let ((typed (type)))
        (if (eq 0 (length typed)) (setq typed "nil"))
        (let ((evalled (eval (read-from-string typed))))
-	 (princ #\Newline gfx) (princ #\Newline gfx)
-	 (prin1 evalled gfx)
-	 (terpri gfx) (terpri gfx)
-	 (print "Press esc to continue" gfx)
-	 (refresh)
-	 (loop (if (eq (get-key) 27) (return))))))))
+         (princ #\Newline gfx) (princ #\Newline gfx)
+         (prin1 evalled gfx)
+         (terpri gfx) (terpri gfx)
+         (print "Press esc to continue" gfx)
+         (refresh)
+         (loop (if (eq (get-key) 27) (return))))))))
