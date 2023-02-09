@@ -15,8 +15,6 @@
     (princ #\176 out))
   (refresh))
 
-(defun type () (edit ""))
-
 (defun edit (buffer)
   (let ((cursor-pos 0))
     (loop (if (not (get-key)) (return))) ; empty key buffer
@@ -32,3 +30,16 @@
          ((< q #xff)
 	  (setq buffer (insert-char buffer (code-char q)))))
        (display buffer)))))
+
+(defun type () (edit ""))
+
+(defun gfx-repl ()
+  (loop
+   (with-gfx (gfx)
+     (let ((typed (type)))
+       (if (eq 0 (length typed)) (setq typed "nil"))
+       (let ((evalled (eval (read-from-string typed))))
+	 (princ #\Newline gfx)
+	 (prin1 evalled gfx)
+	 (refresh)
+	 (loop (if (eq (get-key) 27) (return))))))))
