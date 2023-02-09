@@ -13,7 +13,7 @@ const char LispLibrary[] PROGMEM = "";
 #define printfreespace
 // #define printgcs
 // #define sdcardsupport
-// #define gfxsupport
+ #define gfxsupport
 // #define lisplibrary
 #define assemblerlist
 // #define lineeditor
@@ -29,18 +29,21 @@ const char LispLibrary[] PROGMEM = "";
 
 #if defined(gfxsupport)
 #include <Adafruit_GFX.h>    // Core graphics library
-#include <Adafruit_ST7735.h> // Hardware-specific library for ST7735
+#include <Adafruit_SharpMem.h>
 #define COLOR_WHITE 0xffff
 #define COLOR_BLACK 0
 
-// Adafruit PyBadge/PyGamer
-#define TFT_CS        44  // Chip select
-#define TFT_RST       46  // Display reset
-#define TFT_DC        45  // Display data/command select
-#define TFT_BACKLIGHT 47  // Display backlight pin
-#define TFT_MOSI      41  // Data out
-#define TFT_SCLK      42  // Clock out
-Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_MOSI, TFT_SCLK, TFT_RST);
+#define SPI_FREQ 2000000
+
+#define SHARP_SCK  SPI_CLK
+#define SHARP_MOSI SPI_SDO
+#define SHARP_MISO NC
+#define SHARP_CS   D13
+
+MbedSPI mySPI(SHARP_MISO, SHARP_MOSI, SHARP_SCK); // declare the custom MbedSPI object mySPI
+extern "C" SPIName spi_get_peripheral_name(PinName mosi, PinName miso, PinName sclk); // this mbed internal function determines the IOM module number for a set of pins
+
+Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
 #endif
 
 #if defined(sdcardsupport)
@@ -4535,6 +4538,7 @@ object *fn_drawpixel (object *args, object *env) {
   uint16_t colour = COLOR_WHITE;
   if (cddr(args) != NULL) colour = checkinteger(DRAWPIXEL, third(args));
   tft.drawPixel(checkinteger(DRAWPIXEL, first(args)), checkinteger(DRAWPIXEL, second(args)), colour);
+  tft.refresh();
   #else
   (void) args;
   #endif
@@ -4727,6 +4731,7 @@ object *fn_fillscreen (object *args, object *env) {
   uint16_t colour = COLOR_BLACK;
   if (args != NULL) colour = checkinteger(FILLSCREEN, first(args));
   tft.fillScreen(colour);
+  tft.refresh();
   #else
   (void) args;
   #endif
@@ -6263,14 +6268,37 @@ object *read (gfun_t gfun) {
 }
 
 // Setup
-
 void initgfx () {
 #if defined(gfxsupport)
-  tft.initR(INITR_BLACKTAB);
-  tft.setRotation(1);
-  pinMode(TFT_BACKLIGHT, OUTPUT);
-  digitalWrite(TFT_BACKLIGHT, HIGH);
-  tft.fillScreen(ST77XX_BLACK);
+  pinMode(SHARP_MOSI, OUTPUT);
+  pinMode(SPI_SDI, INPUT);
+  pinMode(SHARP_SCK, OUTPUT);
+  pinMode(SHARP_CS, OUTPUT);
+  digitalWrite(SHARP_CS, LOW);
+  pln(pserial);
+  pfstring(PSTR("starting mySPI with SHARP_MISO = "), pserial);
+  pint(SHARP_MISO, pserial);
+  pfstring(PSTR(", SHARP_MOSI = "), pserial);
+  pint(SHARP_MOSI, pserial);
+  pfstring(PSTR(", SHARP_SCK = "), pserial);
+  pint(SHARP_SCK, pserial);
+  pfstring(PSTR(", SHARP_CS = "), pserial);
+  pint(SHARP_CS, pserial);
+  pfstring(PSTR(" (IOM "), pserial);
+  pint(spi_get_peripheral_name(SHARP_MOSI, SHARP_MISO, SHARP_SCK), pserial);
+  pfstring(PSTR(") "), pserial);
+  pln(pserial);
+  delay(100);
+  tft.begin();
+  tft.clearDisplay();
+  tft.drawPixel(10, 10, COLOR_BLACK);
+  tft.drawPixel(14, 10, COLOR_BLACK);
+  tft.drawPixel(10, 13, COLOR_BLACK);
+  tft.drawPixel(11, 14, COLOR_BLACK);
+  tft.drawPixel(12, 14, COLOR_BLACK);
+  tft.drawPixel(13, 14, COLOR_BLACK);
+  tft.drawPixel(14, 13, COLOR_BLACK);
+  tft.refresh();
 #endif
 }
 
