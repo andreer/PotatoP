@@ -7,15 +7,13 @@
 
 /*
  * TODO
- * 
- * Make the display go faster - hardware SPI or at least faster soft SPI
- * Set up another CTIMER to generate VCOMIN signal to invert display voltage at 1 Hz (or hey, just do it in the same interrupt routine ...)
- * 
- * 
+ * - Finish keyboard routine
+ * - Set up another CTIMER to generate VCOMIN signal to invert display voltage at 1 Hz (or hey, just do it in the same interrupt routine as keyb ...)
+ * - Rebase on a newer uLisp version for built-in documentation!
  */
 
 // Lisp Library
-const char LispLibrary[] PROGMEM = "";
+const char LispLibrary[] PROGMEM = "(loop (fill-screen 0) (refresh) (fill-screen 1) (refresh))";
 
 // Compile options
 
@@ -24,7 +22,7 @@ const char LispLibrary[] PROGMEM = "";
 // #define printgcs
 // #define sdcardsupport
 #define gfxsupport
-// #define lisplibrary
+#define lisplibrary
 #define assemblerlist
 // #define lineeditor
 // #define vt100
@@ -199,7 +197,7 @@ Adafruit_SharpMem tft(&mySPI, SHARP_CS, 320, 240, SPI_FREQ);
   #define CPU_RP2040
 
 #elif defined(ARDUINO_APOLLO3_SFE_ARTEMIS_ATP)
-  #define WORKSPACESIZE 30001
+  #define WORKSPACESIZE 32001
   #define CODESIZE 256
   #define STACKDIFF 320
   #define CPU_APOLLO3
@@ -354,7 +352,7 @@ K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_EXTERNAL,
 K_INPUT, K_INPUT_PULLUP, K_INPUT_PULLDOWN, K_OUTPUT,
 K_GPIO_IN, K_GPIO_OUT, K_GPIO_OUT_SET, K_GPIO_OUT_CLR, K_GPIO_OUT_XOR, K_GPIO_OE, K_GPIO_OE_SET, K_GPIO_OE_CLR, K_GPIO_OE_XOR,
 #endif
-USERFUNCTIONS, ENDFUNCTIONS, SET_SIZE = INT_MAX };
+USERFUNCTIONS, REFRESH, ENDFUNCTIONS, SET_SIZE = INT_MAX };
 
 // Global variables
 
@@ -4549,7 +4547,6 @@ object *fn_drawpixel (object *args, object *env) {
   uint16_t colour = COLOR_WHITE;
   if (cddr(args) != NULL) colour = checkinteger(DRAWPIXEL, third(args));
   tft.drawPixel(checkinteger(DRAWPIXEL, first(args)), checkinteger(DRAWPIXEL, second(args)), colour);
-  tft.refresh();
   #else
   (void) args;
   #endif
@@ -4742,7 +4739,6 @@ object *fn_fillscreen (object *args, object *env) {
   uint16_t colour = COLOR_BLACK;
   if (args != NULL) colour = checkinteger(FILLSCREEN, first(args));
   tft.fillScreen(colour);
-  tft.refresh();
   #else
   (void) args;
   #endif
@@ -4769,7 +4765,18 @@ object *fn_invertdisplay (object *args, object *env) {
   return nil;
 }
 
+object *fn_refresh (object *args, object *env) {
+  (void) env;
+  #if defined(gfxsupport)
+  tft.refresh();
+  #else
+  (void) args;
+  #endif
+  return nil;
+}
+
 // Insert your own function definitions here
+const char mystring1[] PROGMEM = "refresh";
 
 // Built-in symbol names
 const char string0[] PROGMEM = "nil";
@@ -5557,6 +5564,7 @@ const tbl_entry_t lookup_table[] PROGMEM = {
 #endif
 
 // Insert your own table entries here
+  { mystring1, fn_refresh, 0x00 }
 };
 
 // Table lookup functions

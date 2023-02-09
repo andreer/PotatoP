@@ -12,8 +12,12 @@
 #define SHARP_CS   D13
 #define SHARP_VDD  D12
 
+
+MbedSPI mySPI(NC, SPI_SDO, SPI_CLK); // declare the custom MbedSPI object mySPI
+Adafruit_SharpMem display(&mySPI, SHARP_CS, 320, 240, 2000000);
+
 // Set the size of the display here, e.g. 144x168!
-Adafruit_SharpMem display(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240);
+//Adafruit_SharpMem display(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240);
 // The currently-available SHARP Memory Display (144x168 pixels)
 // requires > 4K of microcontroller RAM; it WILL NOT WORK on Arduino Uno
 // or other <4K "classic" devices!  The original display (96x96 pixels)
@@ -42,8 +46,8 @@ const char Keymap[] PROGMEM =
   "@ljda@\\@;kfs@@"//1
   "@@n@@@ @/@b@@@" //2
   "@@h@@@@@'@g@@@" //3
-  "@@y@@@\b@[]t@@@" //4
-  "@9731@@@@842@@" //5
+  "@@y@\t@\b@[]t@@@" //4
+  "@9731@@@0842@@" //5
   "@oueq@@@pirw@@" //6
   "@@6@`@@@-=5@@@";//7
 // 01234567890abc
@@ -196,7 +200,7 @@ void loop( ) {
   //Serial.print(", reading up to ");
   //Serial.println(readTo);
 
-  display.fillCircle(display.width() - 25, display.height() - 25, 22, lastcolor);
+//  display.fillCircle(display.width() - 25, display.height() - 25, 22, lastcolor);
   display.refresh();
 
   if (lastcolor == BLACK) {
@@ -231,9 +235,9 @@ void loop( ) {
 
   }
 
-    int num = millis();
-    Serial.println(num - last);
-    last = num;
+//    int num = millis();
+//    Serial.println(num - last);
+//    last = num;
 //    delay(1000);
 }
 
