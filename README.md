@@ -1,10 +1,6 @@
-PotatoP
+PotatOS
 =======
 
-WIP uLisp-based OS for my homemade computer.
+An uLisp-based "Operating System" and text editor (named "typo") for my homebrew arduino based laptop.
 
-
-TODO
-----
-
- * uLisp live web interface running on arduino
+For more information, see my hackaday project: https://hackaday.io/project/184340-potatop
