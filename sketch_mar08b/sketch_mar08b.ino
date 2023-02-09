@@ -188,7 +188,7 @@ Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
 
 #elif defined(ARDUINO_APOLLO3_SFE_ARTEMIS_ATP)
 #include "BurstMode.h"
-  #define WORKSPACESIZE 30000
+  #define WORKSPACESIZE 30001
   #define CODESIZE 256
   #define STACKDIFF 320
   #define CPU_APOLLO3
