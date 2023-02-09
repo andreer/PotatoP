@@ -4,6 +4,13 @@
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
 
+/*
+
+ TODO:
+   - add error-handling code by Goheeca / mgr: http://forum.ulisp.com/t/error-handling-in-ulisp/691/3
+   - add remaining modifiers (ctrl/alt/super/fn) to keymap (see gdoc)
+*/
+
 // Lisp Library
 const char LispLibrary[] PROGMEM = "";
 
