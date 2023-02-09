@@ -240,7 +240,7 @@ const char LispLibrary[] PROGMEM = {
 // Compile options
 
 // #define resetautorun
-#define printfreespace
+// #define printfreespace
 // #define printgcs
 // #define sdcardsupport
 #define gfxsupport
@@ -265,10 +265,21 @@ const char LispLibrary[] PROGMEM = {
 
 #define SPI_FREQ 2000000
 
-#define SHARP_SCK  SPI_CLK
-#define SHARP_MOSI SPI_SDO
-#define SHARP_MISO SPI_SDI
-#define SHARP_CS   D13
+/* screen 1 
+#define SHARP_SCK   SPI_CLK
+#define SHARP_MOSI  SPI_SDO
+#define SHARP_MISO  SPI_SDI
+#define SHARP_CS    D13
+#define SHARP_VDD   D12
+/* */
+
+/* screen 2 */
+#define SHARP_SCK   D42
+#define SHARP_MOSI  D38
+#define SHARP_MISO  D43
+#define SHARP_CS    D37
+#define SHARP_VDD   D44
+/* */
 
 MbedSPI mySPI(SHARP_MISO, SHARP_MOSI, SHARP_SCK); // declare the custom MbedSPI object mySPI
 extern "C" SPIName spi_get_peripheral_name(PinName mosi, PinName miso, PinName sclk); // this mbed internal function determines the IOM module number for a set of pins
@@ -291,7 +302,7 @@ uint32_t keyEventNum = 0;
 #define COLS 14
 #define DEBOUNCE_CYCLES 1 // doesn't really do much with how slow the scanning is ...
 
-int rows[] = { 42, 43, 0, 1, 2, 45, 41, 17 };
+int rows[] = { 0, 1, 2, 45, 41, 17, 31, 16 };
 int cols[] = { 18, 19, 15, 26, 9, 10, 8, 14, 35, 4, 22, 23, 27, 28 };
 
 mbed::DigitalInOut* gpio[48];
@@ -3484,20 +3495,21 @@ object *sp_ignoreerrors (object *args, object *env) {
 }
 
 object *sp_error (object *args, object *env) {
-  checkargs(SP_ERROR, args); // already make sure that: (args != NULL)
+  // If called with no arguments, clear the error string.
+  if (args == NULL) {
+    GlobalErrorString = NULL;
+    return NULL;
+  }
 
   object *arg = eval(car(args),env); // eval first arg
   args = cdr(args);
 
   object *message;
-  if (symbolp(arg)) { // arg is a symbol
-    // just print the symbol
-    // warning: any more args are just ignored!
-    char *argname = "andreer"; //symbolname(arg->name);
-    message = lispstring(argname);
+  if (symbolp(arg)) {
+    error2(SP_ERROR, PSTR("Error must be a (format) string"));
   } else { // just let FORMAT handle it
     message = eval(
-      cons(symbol(FORMAT), cons(nil, cons(arg, args))),
+      cons(bsymbol(FORMAT), cons(nil, cons(arg, args))),
       env);
   }
 
@@ -6446,7 +6458,7 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { string38, sp_withclient, 0x12, doc38 },
   { string944d81fd0ed3aa6433ad9b560576, sp_unwindprotect, 0x1F, NULL },
   { string4c085b45ade192ea2a98b36e8a24, sp_ignoreerrors, 0x0F, NULL },
-  { stringda16dce31347cc2b47fc4bac32ed, sp_error, 0x1F, NULL },
+  { stringda16dce31347cc2b47fc4bac32ed, sp_error, 0x0F, NULL },
   { string39, sp_defcode, 0x0F, doc39 },
   { string40, NULL, 0x00, NULL },
   { string41, tf_progn, 0x0F, doc41 },
@@ -7542,8 +7554,8 @@ object *read (gfun_t gfun) {
 
 void initgfx () {
 #if defined(gfxsupport)
-  pinMode(D12, OUTPUT);
-  digitalWrite(D12, HIGH);
+  pinMode(SHARP_VDD, OUTPUT);
+  digitalWrite(SHARP_VDD, HIGH);
 
   pln(pserial);
   pfstring(PSTR("starting mySPI with SHARP_MISO = "), pserial);
@@ -7764,7 +7776,7 @@ void loop () {
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  killSerial();
+  // killSerial(); // andreas this drastically reduces power use when unplugged - stops from backpowering serial chip
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   #if defined(ULISP_WIFI)

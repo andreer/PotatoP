@@ -1,11 +1,14 @@
-;; The humble beginnings of a text editor and repl
-;;
-;; TODO:
-;;   - scrolling
-;;   - non-char cursor (reverse video?)
-;;   - move to start/end of line
-;;   - move by word
-;;   - highlight matching paren/quote
+#|
+
+The humble beginnings of a text editor and repl
+
+ TODO:
+   - scrolling
+   - move by word
+   - highlight matching paren/quote
+   - optimizations
+
+|#
 
 (defvar black 0)
 (defvar white 1)
@@ -16,21 +19,30 @@
                (princ-to-string char)
                (subseq buffer pos)))
 
-
 (defun delete-char (buffer pos)
   (concatenate 'string
                (subseq buffer 0 pos)
                (subseq buffer (1+ pos))))
 
 (defun display (buffer pos)
-  (set-cursor 0 0)
-  (set-text-color black white)
-  (fill-screen white)
-  (with-gfx (out)
-    (princ (subseq buffer 0 pos) out)
-    (princ #\176 out)
-    (princ (subseq buffer pos) out)
-    (refresh)))
+  (let ((l (length buffer)))
+    (set-cursor 0 0)
+    (set-text-color black white)
+    (fill-screen white)
+    (with-gfx (out)
+      (princ "Cells: " out) (princ (room) out) (princ ", Length: " out) (princ l out) (terpri out) (terpri out)
+      (princ (subseq buffer 0 pos) out)
+      (set-text-color white black)
+      (if (>= pos l) (princ " " out)
+	  (progn (let ((ch (char buffer pos)))
+	    (if (eq ch #\Newline)
+		(princ " " out))
+	    (princ ch out))
+		 (set-text-color black white)
+		 (if (< pos (1- l))
+		     (princ (subseq buffer (1+ pos)) out))))
+      (set-text-color black white)
+      (refresh))))
 
 (defvar left #x11)
 (defvar right #x10)
@@ -62,7 +74,7 @@
          ((= q (char-code #\Escape)) (return buffer))
          ((= q (char-code #\Backspace))
           (if (> pos 0)
-              (setq buffer (delete-char buffer (1- pos))
+	      (setq buffer (delete-char buffer (1- pos))
                     pos (1- pos)
                     dirty t)))
          ((= q left) (setq pos (max 0 (1- pos))
@@ -91,12 +103,18 @@
      (let ((typed (type)))
        (if (eq 0 (length typed)) (setq typed "nil"))
        (if (string= "q" typed) (return))
+       (error) ; clear any previous error
        (ignore-errors
 	 (let ((evalled (eval (read-from-string typed))))
 	   (princ #\Newline gfx) (princ #\Newline gfx)
 	   (prin1 evalled gfx)
 	   (terpri gfx) (terpri gfx)))
-       (print (get-error) gfx)
+       (if (get-error)
+	   (progn
+	     (terpri gfx) (terpri gfx)
+	     (princ "Error: " gfx)
+	     (princ (get-error) gfx)
+	     (terpri gfx)))
        (princ "..." gfx)
        (refresh)
        (loop (if (eq (get-key) 27) (return)))))))
