@@ -34,7 +34,7 @@ int cols[] = { 18, 19, 15, 26, 9, 10, 8, 14, 35, 4, 22, 23, 27, 28 };
 
 mbed::DigitalInOut* gpio[48];
 
-#define ___ "_"
+#define ___ "\xff"
 
 const char Keymap[] PROGMEM =
 
@@ -46,7 +46,7 @@ const char Keymap[] PROGMEM =
    
   ___  ___  "n"  ___  ___  ___  " "  ___  "/"  ___  "b"  ___  ___  ___  // 2
    
-  ___  ___  "h"  ___  ___  ___  ___  ___  "'"  ___  "g"  ___  ___  ___  // 3
+  ___  ___  "h"  ___  "\e" ___  ___  ___  "'"  ___  "g"  ___  ___  ___  // 3
    
   ___  ___  "y"  ___  "\t" ___  "\b" ___  "["  "]"  "t"  ___  ___  ___  // 4
    
@@ -64,7 +64,7 @@ const char KeymapShifted[] PROGMEM =
    
   ___  "L"  "J"  "D"  "A"  ___  "|"  ___  ":"  "K"  "F"  "S"  ___  ___  // 1
    
-  ___  ___  "N"  ___  ___  ___  " "  ___  "?"  ___  "B"  ___  ___  ___  // 2
+  ___  ___  "N"  ___  "\e" ___  " "  ___  "?"  ___  "B"  ___  ___  ___  // 2
    
   ___  ___  "H"  ___  ___  ___  ___  ___  "\"" ___  "G"  ___  ___  ___  // 3
    
@@ -87,6 +87,8 @@ extern "C" void my_isr()
 {
   keyEventNum++;
   int i, j;
+
+  boolean shifted = (currentKeyState[5] != 0);
 
   for (int i = 0; i < COLS; i++) {
     currentKeyState[i] = 0;
@@ -119,10 +121,10 @@ extern "C" void my_isr()
           }
           reportKeyAgainIn[i][j] = DEBOUNCE_CYCLES;
           if (keyEventWritePtr >= keyEventReadPtr + KEYEVENT_BUFFER_SIZE) return; // we will lose keyEvents ...
-          keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = (keyState << 8) + Keymap[i * COLS + j];
+          keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = (keyState << 8) + (shifted ? KeymapShifted[i * COLS + j] : Keymap[i * COLS + j]);
           keyEventWritePtr++;
-          //          Serial.printf("row %d, col %d is '", i, j);
-          //          Serial.print(Keymap[i * COLS + j]); Serial.println("'");
+//                    Serial.printf("row %d, col %d is '", i, j);
+//                    Serial.print(Keymap[i * COLS + j]); Serial.println("'");
         }
       }
     }
@@ -208,6 +210,7 @@ void setup( ) {
   display.fillCircle(display.width() - 25, display.height() - 25 , 24, BLACK);
   display.refresh();
 
+  // Don't backpower the serial chip
   am_hal_gpio_pinconfig(48, g_AM_HAL_GPIO_INPUT);
   am_hal_gpio_pinconfig(49, g_AM_HAL_GPIO_INPUT);
 
@@ -220,6 +223,8 @@ int lastcolor = BLACK;
 int textposx = 1;
 int textposy = 1;
 int scale = 1;
+int last_refresh = 0;
+double g = 1.0;
 void loop( ) {
   //  delay(100000);
   //Serial.print("loop iteration ");
@@ -237,7 +242,7 @@ void loop( ) {
     lastcolor = BLACK;
   }
 
-  int refresh = 1;
+  int refresh = 0;  
   uint32_t readTo = keyEventWritePtr;
   while (keyEventReadPtr < readTo) {
     int k = keyEvents[keyEventReadPtr % KEYEVENT_BUFFER_SIZE];
@@ -246,12 +251,13 @@ void loop( ) {
     if (k < 0xff) {
 //      Serial.print((char) k);
 
-
       if (k == '\n') {
         textposx = 1;
         textposy++;
       } else if (k == '\b') {
         display.drawChar(--textposx * (6 * scale), textposy * (8 * scale), ' ', BLACK, WHITE, scale);
+      } else if (k < 0x20) {
+        // ignore
       } else {
         display.drawChar(textposx++ * (6 * scale), textposy * (8 * scale), (char)k, BLACK, WHITE, scale);
       }
@@ -264,14 +270,26 @@ void loop( ) {
 
   }
 
-  if (refresh == 1) {
-    display.refresh();
+  if(iteration%100 == 0) {
+    int now = millis();
+    if (now > last_refresh + 1000)
+      refresh = 1;
+  }
+  
+  if (refresh == 1) {        
+    display.refresh();    
+    last_refresh = millis();
+  }
+
+  // pretend to be computing something
+  for (int k = 0; k < 5000; k++) {
+    g = g * (random(1000)/1000.0) + (random(1000)/1000.0);
   }
 
 //    int num = millis();
 //    Serial.println(num - last);
 //    last = num;
-//    delay(1000);
+//    delay(5);
 }
 
 void setupISR()
