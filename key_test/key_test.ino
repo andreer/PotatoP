@@ -13,15 +13,8 @@
 #define SHARP_VDD  D12
 
 
-MbedSPI mySPI(NC, SPI_SDO, SPI_CLK); // declare the custom MbedSPI object mySPI
+MbedSPI mySPI(NC, SPI_SDO, SPI_CLK);
 Adafruit_SharpMem display(&mySPI, SHARP_CS, 320, 240, 2000000);
-
-// Set the size of the display here, e.g. 144x168!
-//Adafruit_SharpMem display(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240);
-// The currently-available SHARP Memory Display (144x168 pixels)
-// requires > 4K of microcontroller RAM; it WILL NOT WORK on Arduino Uno
-// or other <4K "classic" devices!  The original display (96x96 pixels)
-// does work there, but is no longer produced.
 
 #define BLACK 0
 #define WHITE 1
@@ -41,16 +34,48 @@ int cols[] = { 18, 19, 15, 26, 9, 10, 8, 14, 35, 4, 22, 23, 27, 28 };
 
 mbed::DigitalInOut* gpio[48];
 
+#define ___ "_"
+
 const char Keymap[] PROGMEM =
-  "@>mcz@\n@@<vx@@"//0
-  "@ljda@\\@;kfs@@"//1
-  "@@n@@@ @/@b@@@" //2
-  "@@h@@@@@'@g@@@" //3
-  "@@y@\t@\b@[]t@@@" //4
-  "@9731@@@0842@@" //5
-  "@oueq@@@pirw@@" //6
-  "@@6@`@@@-=5@@@";//7
-// 01234567890abc
+
+// 0    1    2    3    4    5    6    7    8    9    a    b    c    d   //
+
+  ___  "."  "m"  "c"  "z"  ___  "\n" ___  ___  ","  "v"  "x"  ___  ___  // 0
+   
+  ___  "l"  "j"  "d"  "a"  ___  "\\" ___  ";"  "k"  "f"  "s"  ___  ___  // 1
+   
+  ___  ___  "n"  ___  ___  ___  " "  ___  "/"  ___  "b"  ___  ___  ___  // 2
+   
+  ___  ___  "h"  ___  ___  ___  ___  ___  "'"  ___  "g"  ___  ___  ___  // 3
+   
+  ___  ___  "y"  ___  "\t" ___  "\b" ___  "["  "]"  "t"  ___  ___  ___  // 4
+   
+  ___  "9"  "7"  "3"  "1"  ___  ___  ___  "0"  "8"  "4"  "2"  ___  ___  // 5
+   
+  ___  "o"  "u"  "e"  "q"  ___  ___  ___  "p"  "i"  "r"  "w"  ___  ___  // 6
+   
+  ___  ___  "6"  ___  "`"  ___  ___  ___  "-"  "="  "5"  ___  ___  ___; // 7
+
+const char KeymapShifted[] PROGMEM =
+
+// 0    1    2    3    4    5    6    7    8    9    a    b    c    d   //
+
+  ___  ">"  "M"  "C"  "Z"  ___  "\n" ___  ___  "<"  "V"  "X"  ___  ___  // 0
+   
+  ___  "L"  "J"  "D"  "A"  ___  "|"  ___  ":"  "K"  "F"  "S"  ___  ___  // 1
+   
+  ___  ___  "N"  ___  ___  ___  " "  ___  "?"  ___  "B"  ___  ___  ___  // 2
+   
+  ___  ___  "H"  ___  ___  ___  ___  ___  "\"" ___  "G"  ___  ___  ___  // 3
+   
+  ___  ___  "Y"  ___  "\t" ___  "\b" ___  "{"  "}"  "T"  ___  ___  ___  // 4
+   
+  ___  "("  "&"  "#"  "!"  ___  ___  ___  ")"  "*"  "$"  "@"  ___  ___  // 5
+   
+  ___  "O"  "U"  "E"  "Q"  ___  ___  ___  "P"  "I"  "R"  "W"  ___  ___  // 6
+   
+  ___  ___  "^"  ___  "~"  ___  ___  ___  "_"  "+"  "%"  ___  ___  ___; // 7
+
 
 //&Keymap[(3-row)*11 + column + 44*shift]
 
