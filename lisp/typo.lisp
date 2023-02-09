@@ -49,6 +49,31 @@ The humble beginnings of a text editor and repl
 (defvar up #x1e)
 (defvar down #x1f)
 
+(defun match-pos (buffer pos)
+  (case (char buffer pos)
+    #\" (match-dquote buffer pos)
+    t nil))
+
+
+; qwe "rty" ui "opasdf" ghjk
+
+(defun match-quote (buffer ch pos)
+  (let ((quot nil)
+	(prev nil)
+	(l (length buffer))
+	(p 0))
+    (loop
+     (if (>= pos l) (return nil))
+     (if (eq #\" (char buffer p))
+	 (case quot
+	   '() (setq quot t
+		     prev p)
+	   't (cond ((= prev pos) (return pos)
+		    (= p pos) return prev)
+		   t (setq quot nil
+			   prev p))))
+     (incf p))))
+
 (defun prev-pos (buffer pos ch)
   (loop
    (decf pos)
