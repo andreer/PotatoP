@@ -4,6 +4,16 @@
    Licensed under the MIT license: https://opensource.org/licenses/MIT
 */
 
+
+/*
+ * TODO
+ * 
+ * Make the display go faster - hardware SPI or at least faster soft SPI
+ * Set up another CTIMER to generate VCOMIN signal to invert display voltage at 1 Hz (or hey, just do it in the same interrupt routine ...)
+ * 
+ * 
+ */
+
 // Lisp Library
 const char LispLibrary[] PROGMEM = "";
 
@@ -13,7 +23,7 @@ const char LispLibrary[] PROGMEM = "";
 #define printfreespace
 // #define printgcs
 // #define sdcardsupport
- #define gfxsupport
+#define gfxsupport
 // #define lisplibrary
 #define assemblerlist
 // #define lineeditor
@@ -26,6 +36,7 @@ const char LispLibrary[] PROGMEM = "";
 #include <SPI.h>
 #include <Wire.h>
 #include <limits.h>
+#include "BurstMode.h"
 
 #if defined(gfxsupport)
 #include <Adafruit_GFX.h>    // Core graphics library
@@ -37,13 +48,14 @@ const char LispLibrary[] PROGMEM = "";
 
 #define SHARP_SCK  SPI_CLK
 #define SHARP_MOSI SPI_SDO
-#define SHARP_MISO NC
+#define SHARP_MISO SPI_SDI
 #define SHARP_CS   D13
 
-MbedSPI mySPI(SHARP_MISO, SHARP_MOSI, SHARP_SCK); // declare the custom MbedSPI object mySPI
+MbedSPI mySPI(NC, SHARP_MOSI, SHARP_SCK); // declare the custom MbedSPI object mySPI
 extern "C" SPIName spi_get_peripheral_name(PinName mosi, PinName miso, PinName sclk); // this mbed internal function determines the IOM module number for a set of pins
 
-Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
+//Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
+Adafruit_SharpMem tft(&mySPI, SHARP_CS, 320, 240, SPI_FREQ);
 #endif
 
 #if defined(sdcardsupport)
@@ -187,7 +199,6 @@ Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
   #define CPU_RP2040
 
 #elif defined(ARDUINO_APOLLO3_SFE_ARTEMIS_ATP)
-#include "BurstMode.h"
   #define WORKSPACESIZE 30001
   #define CODESIZE 256
   #define STACKDIFF 320
@@ -6270,11 +6281,15 @@ object *read (gfun_t gfun) {
 // Setup
 void initgfx () {
 #if defined(gfxsupport)
-  pinMode(SHARP_MOSI, OUTPUT);
-  pinMode(SPI_SDI, INPUT);
-  pinMode(SHARP_SCK, OUTPUT);
-  pinMode(SHARP_CS, OUTPUT);
-  digitalWrite(SHARP_CS, LOW);
+//  pinMode(SHARP_MOSI, OUTPUT);
+//  pinMode(SPI_SDI, INPUT);
+//  pinMode(SHARP_SCK, OUTPUT);
+//  pinMode(SHARP_CS, OUTPUT);
+//  digitalWrite(SHARP_CS, LOW);
+  
+  pinMode(D12, OUTPUT);
+  digitalWrite(D12, HIGH);
+  
   pln(pserial);
   pfstring(PSTR("starting mySPI with SHARP_MISO = "), pserial);
   pint(SHARP_MISO, pserial);
@@ -6288,16 +6303,17 @@ void initgfx () {
   pint(spi_get_peripheral_name(SHARP_MOSI, SHARP_MISO, SHARP_SCK), pserial);
   pfstring(PSTR(") "), pserial);
   pln(pserial);
+  mySPI.begin();
   delay(100);
   tft.begin();
   tft.clearDisplay();
-  tft.drawPixel(10, 10, COLOR_BLACK);
-  tft.drawPixel(14, 10, COLOR_BLACK);
-  tft.drawPixel(10, 13, COLOR_BLACK);
-  tft.drawPixel(11, 14, COLOR_BLACK);
-  tft.drawPixel(12, 14, COLOR_BLACK);
-  tft.drawPixel(13, 14, COLOR_BLACK);
-  tft.drawPixel(14, 13, COLOR_BLACK);
+  tft.drawPixel(155 + 0, 115 + 0, COLOR_BLACK);
+  tft.drawPixel(155 + 4, 115 + 0, COLOR_BLACK);
+  tft.drawPixel(155 + 0, 115 + 3, COLOR_BLACK);
+  tft.drawPixel(155 + 1, 115 + 4, COLOR_BLACK);
+  tft.drawPixel(155 + 2, 115 + 4, COLOR_BLACK);
+  tft.drawPixel(155 + 3, 115 + 4, COLOR_BLACK);
+  tft.drawPixel(155 + 4, 115 + 3, COLOR_BLACK);
   tft.refresh();
 #endif
 }
@@ -6308,7 +6324,6 @@ void initenv () {
 }
 
 void setup () {
-  enableBurstMode();
   Serial.begin(115200);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
