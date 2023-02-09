@@ -1,5 +1,3 @@
-; requires typo
-
 (defun wait-for-key-press (gfx)
   (format gfx "> Press any key to continue~%")
   (refresh)
@@ -22,4 +20,3 @@
 	 (refresh)
 	 (wait-for-key-press gfx))))))
 
-(gfx-repl)

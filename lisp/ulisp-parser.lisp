@@ -28,6 +28,3 @@ before it is passed to the reader, in order to avoid invoking undefined behaviou
 	  (if (>= pos (length str))
 	      (parse-error "end of file reached while parsing quoted string!")
 	      (if (eq (char str pos) #\") (return (subseq str start pos)))))))
-							  
-(parse 'cake)
-(parse "")
