@@ -1,4 +1,9 @@
 ;; The humble beginnings of a text editor
+;;
+;; TODO:
+;;   - move to start/end of line
+;;   - move by word
+;;   - highlight matching paren/quote
 
 (defvar black 0)
 (defvar white 1)
@@ -30,7 +35,20 @@
 (defvar up #x1e)
 (defvar down #x1f)
 
-(defun edit (buffer)
+(defun prev-pos (buffer pos ch)
+  (loop
+   (decf pos)
+   (if (< pos 0) (return nil))
+   (if (eq ch (char buffer pos)) (return pos))))
+
+(defun next-pos (buffer pos ch)
+  (let ((l (length buffer)))
+    (loop
+     (incf pos)
+     (if (>= pos l) (return nil))
+     (if (eq ch (char buffer pos)) (return pos)))))
+
+(defun typo (buffer)
   (let ((cursor-pos 0)
 	(dirty t))
     (loop (if (not (get-key)) (return))) ; empty key buffer
@@ -49,12 +67,21 @@
 			   dirty t))
 	 ((= q right) (setq cursor-pos (min (length buffer) (1+ cursor-pos))
 			    dirty t))
+	 ((= q up) (setq cursor-pos (or (prev-pos buffer cursor-pos #\Newline) 0)
+			 dirty t))
+	 ((= q down) (setq cursor-pos (or (next-pos buffer cursor-pos #\Newline) (length buffer))
+			   dirty t))
 	 ((< q #xff)
 	  (setq buffer (insert-char buffer (code-char q) cursor-pos)
 		cursor-pos (1+ cursor-pos)
 		dirty t)))))))
 
-(defun type () (edit ""))
+(defun type () (typo ""))
+
+(defun repeat-string (str n)
+  (let ((res ""))
+    (dotimes (i n res)
+      (setq res (concatenate 'string res str)))))
 
 (defun gfx-repl ()
   (loop
@@ -64,10 +91,7 @@
        (let ((evalled (eval (read-from-string typed))))
 	 (princ #\Newline gfx) (princ #\Newline gfx)
 	 (prin1 evalled gfx)
+	 (terpri gfx) (terpri gfx)
+	 (print "Press esc to continue" gfx)
 	 (refresh)
 	 (loop (if (eq (get-key) 27) (return))))))))
-
-(defun repeat-string (str n)
-  (let ((res ""))
-    (dotimes (i n res)
-      (setq res (concatenate 'string res str)))))
