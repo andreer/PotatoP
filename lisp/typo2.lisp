@@ -1,12 +1,3 @@
-;; The humble beginnings of a text editor and repl
-;;
-;; TODO:
-;;   - scrolling
-;;   - non-char cursor (reverse video?)
-;;   - move to start/end of line
-;;   - move by word
-;;   - highlight matching paren/quote
-
 (defvar black 0)
 (defvar white 1)
 
@@ -100,3 +91,5 @@
        (princ "..." gfx)
        (refresh)
        (loop (if (eq (get-key) 27) (return)))))))
+
+(gfx-repl)

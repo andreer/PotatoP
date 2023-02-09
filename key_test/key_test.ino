@@ -1,3 +1,5 @@
+#include <BurstMode.h>
+
 //
 // Keyboard scanning test
 //
@@ -8,12 +10,12 @@
 
 #define SHARP_SCK  SPI_CLK // SPI_CLK
 #define SHARP_MOSI SPI_SDO
-#define SHARP_MISO NC
+#define SHARP_MISO D6
 #define SHARP_CS   D13
 #define SHARP_VDD  D12
 
 
-MbedSPI mySPI(NC, SPI_SDO, SPI_CLK);
+MbedSPI mySPI(SHARP_MISO, SPI_SDO, SPI_CLK);
 Adafruit_SharpMem display(&mySPI, SHARP_CS, 320, 240, 2000000);
 
 #define BLACK 0
@@ -155,7 +157,7 @@ void setupKeyboard() {
   for (int i = 0; i < ROWS ; i++) {
     pinMode(rows[i], OUTPUT);
     digitalWrite(rows[i], LOW);
-    pinMode(rows[i], INPUT);
+    pinMode(rows[i], INPUT_PULLUP);
     gpio[rows[i]] = new mbed::DigitalInOut(pinNameByIndex(pinIndexByNumber(rows[i])));
     gpio[rows[i]]->input();
     //am_hal_gpio_pinconfig(rows[i], g_AM_HAL_GPIO_OUTPUT);
@@ -171,11 +173,15 @@ void setupKeyboard() {
 }
 
 void setup( ) {
-//  Serial.begin(115200);
-//  while (!Serial) {
+ Serial.begin(115200);
+ while (!Serial) {
     ; // Wait for serial port to connect. Needed for native USB port only.
-//  }
-//  Serial.println("CTIMER will trigger an interrupt, calling the function my_isr at regular intervals.");
+ }
+ Serial.println("CTIMER will trigger an interrupt, calling the function my_isr at regular intervals.");
+Serial.end();
+
+  am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_UART0);
+  am_hal_pwrctrl_periph_disable(AM_HAL_PWRCTRL_PERIPH_UART1);
 
   setupKeyboard();
 
@@ -277,19 +283,22 @@ void loop( ) {
   }
   
   if (refresh == 1) {        
-    display.refresh();    
+    display.refresh();        
     last_refresh = millis();
   }
 
   // pretend to be computing something
-  for (int k = 0; k < 5000; k++) {
-    g = g * (random(1000)/1000.0) + (random(1000)/1000.0);
-  }
+  // for (int k = 0; k < 1000; k++) {
+  //   g = g * (random(1000)/1000.0) + (random(1000)/1000.0);
+  // }
+
+  am_hal_sysctrl_sleep(AM_HAL_SYSCTRL_SLEEP_DEEP);
+
+  
 
 //    int num = millis();
 //    Serial.println(num - last);
 //    last = num;
-//    delay(5);
 }
 
 void setupISR()
