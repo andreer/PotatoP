@@ -7,11 +7,11 @@ before it is passed to the reader, in order to avoid invoking undefined behaviou
 |#
 
 (defun parse-error (str)
-  (error (concatenate 'string "Parse error: " str)))
+  (error (concatenate 'string "while parsing: " str)))
 
 (defun parse (str)
   (if (not (stringp str))
-      (error "not a string!")
+      (parse-error "not a string!")
       (parse-from str 0)))
 
 (defun parse-from (str pos)
@@ -19,14 +19,14 @@ before it is passed to the reader, in order to avoid invoking undefined behaviou
     (if (= l pos) nil
 	(let ((ch (char str pos)))
 	  (if (eq ch #\")
-	      (parse-string str (+1 pos))
+	      (parse-string str (1+ pos))
 	      "dunno")))))
 
 (defun parse-string (str start)
   (let ((pos start))
     (loop
 	  (if (>= pos (length str))
-	      (error "end of file reached while parsing quoted string!")
+	      (parse-error "end of file reached while parsing quoted string!")
 	      (if (eq (char str pos) #\") (return (subseq str start pos)))))))
 							  
 (parse 'cake)

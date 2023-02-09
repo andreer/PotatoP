@@ -39,5 +39,6 @@
       (plot-pixel x y)
       (let ((xy (funcall (choose-transform) x y)))
         (setq x (first xy))
-        (setq y (second xy)))))
+        (setq y (second xy)))
+      (if (= 0 (mod i 100)) (refresh))))
   (refresh))

@@ -2,16 +2,45 @@
 
 The humble beginnings of a text editor and repl
 
- TODO:
-   - scrolling
-   - move by word
-   - highlight matching paren/quote
-   - optimizations
+TODO:
+- scrolling
+- move by word
+- highlight matching paren/quote
+- optimizations
 
 |#
 
 (defvar black 0)
 (defvar white 1)
+
+(defun typo (buffer)
+  (let ((pos 0)
+        (dirty t))
+    (clear-key-buffer)
+    (fill-screen white)
+    (loop
+     (let ((q (get-key)))
+       (cond
+         ((not q) (when dirty (display buffer pos) (setq dirty nil)))
+         ((= q (char-code #\Escape)) (return buffer))
+         ((= q (char-code #\Backspace))
+          (if (> pos 0)
+	      (setq buffer (delete-char buffer (1- pos))
+                    pos (1- pos)
+                    dirty t)))
+         ((= q left) (setq pos (max 0 (1- pos))
+                           dirty t))
+         ((= q right) (setq pos (min (length buffer) (1+ pos))
+                            dirty t))
+         ((= q up) (setq pos (or (prev-pos buffer pos #\Newline) 0)
+                         dirty t))
+         ((= q down) (setq pos (or (next-pos buffer pos #\Newline)
+				   (length buffer))
+                           dirty t))
+         ((< q #xff)
+          (setq buffer (insert-char buffer (code-char q) pos)
+                pos (1+ pos)
+                dirty t)))))))
 
 (defun insert-char (buffer char pos)
   (concatenate 'string
@@ -30,17 +59,21 @@ The humble beginnings of a text editor and repl
     (set-text-color black white)
     (fill-screen white)
     (with-gfx (out)
-      (princ "Cells: " out) (princ (room) out) (princ ", Length: " out) (princ l out) (terpri out) (terpri out)
-      (princ (subseq buffer 0 pos) out)
-      (set-text-color white black)
-      (if (>= pos l) (princ " " out)
-	  (progn (let ((ch (char buffer pos)))
-	    (if (eq ch #\Newline)
-		(princ " " out))
-	    (princ ch out))
-		 (set-text-color black white)
-		 (if (< pos (1- l))
-		     (princ (subseq buffer (1+ pos)) out))))
+      (format out "Cells: ~a, Length: ~a~%~%" (room) l)
+      (let* ((vis (n-lines-around 28 pos buffer))
+             (pos (- pos (car vis)))
+             (buffer (cadr vis))
+             (l (length buffer)))
+        (princ (subseq buffer 0 pos) out)
+        (set-text-color white black)
+        (if (>= pos l)
+            (princ " " out)
+            (progn
+              (let ((ch (char buffer pos)))
+		(if (eq ch #\Newline) (princ " " out))
+		(princ ch out))
+              (set-text-color black white)
+              (if (< pos (1- l)) (princ (subseq buffer (1+ pos)) out)))))
       (set-text-color black white)
       (refresh))))
 
@@ -87,59 +120,31 @@ The humble beginnings of a text editor and repl
      (if (>= pos l) (return nil))
      (if (eq ch (char buffer pos)) (return pos)))))
 
-(defun typo (buffer)
-  (let ((pos 0)
-        (dirty t))
-    (loop (if (not (get-key)) (return)))
-    (fill-screen white)
+;; Jeez what a mess of a function
+(defun n-lines-around (n pos buffer)
+  (let ((start pos)
+	(end pos)
+	(lines 0)
+	(n (1+ n))) ; like wft even is this
     (loop
-     (let ((q (get-key)))
-       (cond
-         ((not q) (if dirty (progn (display buffer pos) (setq dirty nil))))
-         ((= q (char-code #\Escape)) (return buffer))
-         ((= q (char-code #\Backspace))
-          (if (> pos 0)
-	      (setq buffer (delete-char buffer (1- pos))
-                    pos (1- pos)
-                    dirty t)))
-         ((= q left) (setq pos (max 0 (1- pos))
-                           dirty t))
-         ((= q right) (setq pos (min (length buffer) (1+ pos))
-                            dirty t))
-         ((= q up) (setq pos (or (prev-pos buffer pos #\Newline) 0)
-                         dirty t))
-         ((= q down) (setq pos (or (next-pos buffer pos #\Newline) (length buffer))
-                           dirty t))
-         ((< q #xff)
-          (setq buffer (insert-char buffer (code-char q) pos)
-                pos (1+ pos)
-                dirty t)))))))
+     (let ((prev (prev-pos buffer start #\Newline)))
+       (when (null prev) (setq start 0) (incf lines) (return))
+       (if (< (* 3 lines) n)
+	   (setq start prev
+		 lines (1+ lines))
+	   (progn (setq start prev)
+		  (incf lines)
+		  (return)))))
+    (if (and (< pos (length buffer))
+	     (eq (char buffer pos) #\Newline))
+	(incf lines))
+    (dotimes (i (- n lines))
+      (setq end (or (next-pos buffer end #\Newline)
+                    (length buffer))))
+    (if (and (> (length buffer) start) (eq (char buffer start) #\Newline)) (incf start))
+    (list start (subseq buffer (or start 0) end))))
+
+(defun clear-key-buffer ()
+  (loop (if (not (get-key)) (return))))
 
 (defun type () (typo ""))
-
-(defun repeat-string (str n)
-  (let ((res ""))
-    (dotimes (i n res)
-      (setq res (concatenate 'string res str)))))
-
-(defun gfx-repl ()
-  (loop
-   (with-gfx (gfx)
-     (let ((typed (type)))
-       (if (eq 0 (length typed)) (setq typed "nil"))
-       (if (string= "q" typed) (return))
-       (error) ; clear any previous error
-       (ignore-errors
-	 (let ((evalled (eval (read-from-string typed))))
-	   (princ #\Newline gfx) (princ #\Newline gfx)
-	   (prin1 evalled gfx)
-	   (terpri gfx) (terpri gfx)))
-       (if (get-error)
-	   (progn
-	     (terpri gfx) (terpri gfx)
-	     (princ "Error: " gfx)
-	     (princ (get-error) gfx)
-	     (terpri gfx)))
-       (princ "..." gfx)
-       (refresh)
-       (loop (if (eq (get-key) 27) (return)))))))
