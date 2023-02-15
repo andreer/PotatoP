@@ -1,6 +1,7 @@
 (defun edit (fun)
   (if (not (boundp fun))
       (error "There is no function ~a" fun)))
+; not done
 
 (defun repeat-string (str n)
   (let ((res ""))
@@ -12,16 +13,6 @@
 	(res (fun)))
     (format gfx "~%~a ms" (- (millis) start))
     res))
-
-(defun fib (n)
-  (if (< n 3) 1
-      (+
-       (fib (- n 1))
-       (fib (- n 2)))))
-
-(defun pow (a b)
-  (if (= b 0) 1
-      (* a (pow a (1- b)))))
 
 (defun faces (n)
   (dotimes (i n)

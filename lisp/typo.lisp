@@ -3,10 +3,11 @@
 The humble beginnings of a text editor and repl
 
 TODO:
-- scrolling
+- scrolling (pageup/pagedown)
 - move by word
 - highlight matching paren/quote
 - optimizations
+  - rewrite from single string to list of lines
 
 |#
 

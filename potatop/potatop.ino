@@ -32,7 +32,12 @@
 #include <Wire.h>
 #include <limits.h>
 
-#include "BurstMode.h"
+// Apollo3 specific stuff
+// #include "BurstMode.h"
+#include "mbed.h"
+
+mbed::ScopedRamExecutionLock make_ram_executable;
+
 #if defined(gfxsupport)
 #include <Adafruit_GFX.h>    // Core graphics library
 #include <Adafruit_SharpMem.h> // Hardware-specific library for SHARP Memory displays
@@ -40,7 +45,7 @@
 #define COLOR_WHITE 1
 #define COLOR_BLACK 0
 
-#define SPI_FREQ 3000000
+#define SPI_FREQ 2000000
 
 /* screen 1
 #define SHARP_SCK   SPI_CLK
@@ -54,7 +59,7 @@
 #define SHARP_SCK   D42
 #define SHARP_MOSI  D38
 #define SHARP_MISO  D43
-#define SHARP_CS    D37
+#define SHARP_CS    D36
 #define SHARP_VDD   D44
 /* */
 
@@ -450,7 +455,7 @@ K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_EXTERNAL,
 K_INPUT, K_INPUT_PULLUP, K_INPUT_PULLDOWN, K_OUTPUT, K_GPIO_IN, K_GPIO_OUT, K_GPIO_OUT_SET,
 K_GPIO_OUT_CLR, K_GPIO_OUT_XOR, K_GPIO_OE, K_GPIO_OE_SET, K_GPIO_OE_CLR, K_GPIO_OE_XOR,
 #endif
-USERFUNCTIONS, GETERROR, REFRESH, GETKEY, ENDFUNCTIONS, SET_SIZE = INT_MAX };
+USERFUNCTIONS, GETERROR, REFRESH, GETKEY, PEEK, POKE, ENDFUNCTIONS, SET_SIZE = INT_MAX };
 
 // Global variables
 
@@ -2754,6 +2759,7 @@ object *sp_setq (object *args, object *env) {
 object *sp_loop (object *args, object *env) {
   object *start = args;
   for (;;) {
+    testescape();
     args = start;
     while (args != NULL) {
       object *result = eval(car(args),env);
@@ -3137,6 +3143,10 @@ object *sp_withsdcard (object *args, object *env) {
   object *var = first(params);
   object *filename = eval(second(params), env);
   params = cddr(params);
+
+  // enable power to SD card
+  sd_on();
+
   SD.begin(SDCARD_SS_PIN);
   int mode = 0;
   if (params != NULL && first(params) != NULL) mode = checkinteger(WITHSDCARD, first(params));
@@ -3157,6 +3167,9 @@ object *sp_withsdcard (object *args, object *env) {
   object *result = eval(tf_progn(forms,env), env);
   if (mode >= 1) SDpfile.close(); else SDgfile.close();
   SD.end();
+
+  sd_off();
+
   return result;
   #else
   (void) args, (void) env;
@@ -5276,8 +5289,23 @@ object *fn_getkey (object *args, object *env) {
     return number(k);
   }
 
-  am_hal_sysctrl_sleep(AM_HAL_SYSCTRL_SLEEP_DEEP);
+  // andreer: Reduces power consumption when a program is waiting for input
+  am_hal_sysctrl_sleep(AM_HAL_SYSCTRL_DEEPSLEEP);
   return nil;
+}
+
+object *fn_peek (object *args, object *env) {
+  (void) env;
+  int addr = checkinteger(PEEK, first(args));
+  return number(*(int *)addr);
+}
+
+object *fn_poke (object *args, object *env) {
+  (void) env;
+  int addr = checkinteger(POKE, first(args));
+  object *val = second(args);
+  *(int *)addr = checkinteger(POKE, val);
+  return val;
 }
 
 // Built-in symbol names
@@ -5687,6 +5715,8 @@ const char string241[] PROGMEM = "";
 
 const char mystring1[] PROGMEM = "refresh";
 const char mystring2[] PROGMEM = "get-key";
+const char mystring3[] PROGMEM = "peek";
+const char mystring4[] PROGMEM = "poke";
 const char user06975b647a442ae56f6ee0abc8fb[] PROGMEM = "get-error";
 
 // Documentation strings
@@ -6206,6 +6236,11 @@ const char mydoc[] PROGMEM = "(refresh)\n"
 const char mydoc2[] PROGMEM = "(get-key)\n"
 "Returns a key event, or nil if there are no key events in the queue.";
 
+const char peekdoc[] PROGMEM = "(peek address)\n"
+"Returns the contents of the specified memory address.";
+const char pokedoc[] PROGMEM = "(poke address value)\n"
+"Stores value in the specified memory address, and returns value.";
+
 // Built-in symbol lookup table
 const tbl_entry_t lookup_table[] PROGMEM = {
   { string0, NULL, 0x00, doc0 },
@@ -6613,7 +6648,9 @@ const tbl_entry_t lookup_table[] PROGMEM = {
 // Insert your own table entries here
   { user06975b647a442ae56f6ee0abc8fb, fn_geterror, 0x00, NULL },
   { mystring1, fn_refresh, 0x00, mydoc },
-  { mystring2, fn_getkey, 0x00, mydoc2 }
+  { mystring2, fn_getkey, 0x00, mydoc2 },
+  { mystring3, fn_peek, 0x11, peekdoc },
+  { mystring4, fn_poke, 0x22, pokedoc }
 };
 
 // Table lookup functions
@@ -7367,7 +7404,7 @@ void initgfx () {
   // pfstring(PSTR(") "), pserial);
   // pln(pserial);
   // mySPI.begin();
-  delay(1000);
+  delay(100);
   tft.begin();
   tft.clearDisplay();  
   tft.drawPixel(155 + 0, 115 + 0, COLOR_BLACK);
@@ -7386,8 +7423,18 @@ void initenv () {
   tee = bsymbol(TEE);
 }
 
-extern "C" void my_isr()
+extern "C" void keyboard_isr()
 {
+  /*
+  I thought I could tft.toggleVcom(); here but no;
+  Error Status: 0x80010133 Code: 307 Module: 1
+  Error Message: Mutex: 0x1003F138, Not allowed in ISR context
+  Location: 0x2DCFF
+  Error Value: 0x1003F138
+  Current Thread: rtx_idle Id: 0x10042134 Entry: 0x2DD0D StackSize: 0x200 StackMem: 0x10042478 SP: 0x1005FE3C 
+  For more info, visit: https://mbed.com/s/error?error=0x80010133&tgt=SFE_ARTEMIS_ATP
+  */
+
   keyEventNum++;
   int i, j;
 
@@ -7399,24 +7446,20 @@ extern "C" void my_isr()
 
   for (i = 0; i < ROWS ; i++) {
     int row = rows[i];
-    //    pinMode(row, OUTPUT);
-    gpio[row]->output();
-    //    am_hal_gpio_state_write(row, AM_HAL_GPIO_OUTPUT_CLEAR);
+    am_hal_gpio_output_tristate_enable(row);
     for (j = 0; j < COLS ; j++) {
       int col = cols[j];
 
       if (reportKeyAgainIn[i][j]) reportKeyAgainIn[i][j]--;
 
-      int keyState = am_hal_gpio_input_read(col);
-      //      int keyState = rand()%2;
-      //      int keyState = digitalRead(col);
-      //      int keyState = digitalRead(col);
+      uint32_t keyState = 0;
+      am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // Yes, do this three times.
+      am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // Gives it some
+      am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // time to settle
       currentKeyState[j] |= (!keyState) << i;
 
       if (keyState == reportedKeyState[j] >> i) {
-        //        Serial.println(reportKeyAgainIn[i][j]);
         if (reportKeyAgainIn[i][j] == 0) {
-          //          Serial.println("here");
           if (keyState == 1) {
             reportedKeyState[j] = reportedKeyState[j] & !(1 << i);
           } else if (keyState == 0) {
@@ -7426,32 +7469,11 @@ extern "C" void my_isr()
           if (keyEventWritePtr >= keyEventReadPtr + KEYEVENT_BUFFER_SIZE) return; // we will lose keyEvents ...
           keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = (keyState << 8) + (shifted ? KeymapShifted[i * COLS + j] : Keymap[i * COLS + j]);
           keyEventWritePtr++;
-//                    Serial.printf("row %d, col %d is '", i, j);
-//                    Serial.print(Keymap[i * COLS + j]); Serial.println("'");
         }
       }
     }
-    //    pinMode(row, INPUT);
-    gpio[row]->input();
-    //    am_hal_gpio_state_write(row, AM_HAL_GPIO_OUTPUT_TRISTATE_DISABLE);
+    am_hal_gpio_output_tristate_disable(row);
   }
-  //
-  //
-  //  Serial.print("Current: ");
-  //  for (int i = 0; i < COLS; i++) {
-  //    Serial.print(currentKeyState[i]);
-  //    Serial.print(" ");
-  //  }
-  //  Serial.println();
-  //
-  //  Serial.print("Reported: ");
-  //  for (int i = 0; i < COLS; i++) {
-  //    Serial.print(reportedKeyState[i]);
-  //    Serial.print(" ");
-  //  }
-  //  Serial.println();
-  //  Serial.println();
-  //  Serial.println();
 }
 
 void setupKeyboard() {
@@ -7461,15 +7483,18 @@ void setupKeyboard() {
     pinMode(rows[i], INPUT);
     gpio[rows[i]] = new mbed::DigitalInOut(pinNameByIndex(pinIndexByNumber(rows[i])));
     gpio[rows[i]]->input();
-    //am_hal_gpio_pinconfig(rows[i], g_AM_HAL_GPIO_OUTPUT);
+    am_hal_gpio_pinconfig(rows[i], g_AM_HAL_GPIO_OUTPUT);
+    am_hal_gpio_pinconfig(rows[i], g_AM_HAL_GPIO_TRISTATE);
+    am_hal_gpio_state_write(rows[i], AM_HAL_GPIO_OUTPUT_CLEAR);
+    am_hal_gpio_state_write(rows[i], AM_HAL_GPIO_OUTPUT_TRISTATE_DISABLE);
   }
 
   for (int j = 0; j < COLS ; j++) {
     pinMode(cols[j], INPUT_PULLUP);
     //
     //gpio[cols[j]] = new mbed::DigitalInOut(pinNameByIndex(pinIndexByNumber(cols[j])));
-    //am_hal_gpio_pinconfig(cols[j], g_AM_HAL_GPIO_INPUT_PULLUP_24);
-    am_hal_gpio_fastgpio_enable(cols[j]);
+    am_hal_gpio_pinconfig(cols[j], g_AM_HAL_GPIO_INPUT_PULLUP);
+    // am_hal_gpio_fastgpio_enable(cols[j]);
   }
 }
 
@@ -7484,7 +7509,6 @@ void setupISR()
                               AM_HAL_CTIMER_FN_REPEAT |
                               AM_HAL_CTIMER_INT_ENABLE);
 
-  //  Set the timing parameters.
   //  32 Hz = 1 tick on and 1 tick off, so the interrupt will trigger at 16Hz
   am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 1, 1);
 
@@ -7492,27 +7516,95 @@ void setupISR()
 
   NVIC_EnableIRQ(CTIMER_IRQn);
 
-//  Serial.println("CTIMER started");
-
   am_hal_ctimer_int_clear(AM_HAL_CTIMER_INT_TIMERA2);
   am_hal_ctimer_int_enable(AM_HAL_CTIMER_INT_TIMERA2);
-  am_hal_ctimer_int_register(AM_HAL_CTIMER_INT_TIMERA2, my_isr);
-
-//  Serial.print("Timer A");
-//  Serial.print(timerNum);
-//  Serial.println(" configured");
+  am_hal_ctimer_int_register(AM_HAL_CTIMER_INT_TIMERA2, keyboard_isr);
 }
 
 void disableISR() {
   am_hal_ctimer_int_disable(AM_HAL_CTIMER_INT_TIMERA2);
 }
 
+void slowISR() {
+  int timerNum = 2;
+  // am_hal_ctimer_config_single(timerNum, AM_HAL_CTIMER_TIMERA,
+  //                             AM_HAL_CTIMER_LFRC_32HZ |
+  //                             AM_HAL_CTIMER_FN_REPEAT |
+  //                             AM_HAL_CTIMER_INT_ENABLE);
+
+  //  32 Hz = 1 tick on and 1 tick off, so the interrupt will trigger at 16Hz
+  am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 100, 100);
+}
+
+void unslowISR() {
+    int timerNum = 2;
+    // am_hal_ctimer_config_single(timerNum, AM_HAL_CTIMER_TIMERA,
+    //                           AM_HAL_CTIMER_LFRC_512HZ |
+    //                           AM_HAL_CTIMER_FN_REPEAT |
+    //                           AM_HAL_CTIMER_INT_ENABLE);
+
+  //  32 Hz = 1 tick on and 1 tick off, so the interrupt will trigger at 16Hz
+  am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 1, 1);
+}
+
 void enableISR() {
   am_hal_ctimer_int_enable(AM_HAL_CTIMER_INT_TIMERA2);
 }
 
+void initsd() {
+  // Configure pin 3 as VDD switch for SD card.
+
+am_hal_gpio_pincfg_t PadDefVDD =
+{
+  .uFuncSel = 3,                                          // set pin as GPIO
+  .ePowerSw = AM_HAL_GPIO_PIN_POWERSW_VDD,                // power switch to 3v3
+  .ePullup = AM_HAL_GPIO_PIN_PULLUP_NONE,                 // no pullup
+  .eDriveStrength = AM_HAL_GPIO_PIN_DRIVESTRENGTH_2MA,    // weak
+  .eGPOutcfg = AM_HAL_GPIO_PIN_OUTCFG_PUSHPULL,           // A push-pull GPIO has the ability to both source and sink current
+  .eGPInput = AM_HAL_GPIO_PIN_INPUT_ENABLE,               // enable for input
+  .eIntDir = 0x0,                                         // NO interrupts
+  .eGPRdZero = AM_HAL_GPIO_PIN_RDZERO_READPIN             // when read.. read as zeros
+};
+
+  am_hal_gpio_pinconfig(3, PadDefVDD);
+  am_hal_gpio_state_write(3, AM_HAL_GPIO_OUTPUT_CLEAR);
+
+  am_hal_gpio_pincfg_t PadDefVSS =
+{
+  .uFuncSel = 3,                                          // set pin as GPIO
+  .ePowerSw = AM_HAL_GPIO_PIN_POWERSW_VSS,                // power switch GND
+  .ePullup = AM_HAL_GPIO_PIN_PULLUP_NONE,                 // no pullup
+  .eDriveStrength = AM_HAL_GPIO_PIN_DRIVESTRENGTH_2MA,    // weak
+  .eGPOutcfg = AM_HAL_GPIO_PIN_OUTCFG_PUSHPULL,           // A push-pull GPIO has the ability to both source and sink current
+  .eGPInput = AM_HAL_GPIO_PIN_INPUT_ENABLE,               // enable for input
+  .eIntDir = 0x0,                                         // NO interrupts
+  .eGPRdZero = AM_HAL_GPIO_PIN_RDZERO_READPIN             // when read.. read as zeros
+};
+
+  am_hal_gpio_pinconfig(37, PadDefVSS);
+  am_hal_gpio_state_write(37, AM_HAL_GPIO_OUTPUT_CLEAR);
+}
+
+void sd_on() {
+  initsd();
+  am_hal_gpio_state_write(3, AM_HAL_GPIO_OUTPUT_SET);
+  am_hal_gpio_state_write(37, AM_HAL_GPIO_OUTPUT_CLEAR);
+  delay(100); // give the SD card time to initialize (TODO: check spec)
+}
+
+void sd_off() {
+  delay(100); // give the SD card time to do any clean-up (TODO: check spec)
+  am_hal_gpio_state_write(3, AM_HAL_GPIO_OUTPUT_CLEAR);
+  am_hal_gpio_pinconfig(3, g_AM_HAL_GPIO_DISABLE);
+  am_hal_gpio_pinconfig(5, g_AM_HAL_GPIO_DISABLE);
+  am_hal_gpio_pinconfig(6, g_AM_HAL_GPIO_DISABLE);
+  am_hal_gpio_pinconfig(7, g_AM_HAL_GPIO_DISABLE);
+  am_hal_gpio_pinconfig(13, g_AM_HAL_GPIO_DISABLE);
+  am_hal_gpio_pinconfig(37, g_AM_HAL_GPIO_DISABLE);
+}
+
 void setup () {
-  enableBurstMode();
+  // enableBurstMode();
   Serial.begin(19200);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
@@ -7520,6 +7612,7 @@ void setup () {
   initenv();
   initsleep();
   initgfx();
+  initsd();
   setupKeyboard();
   setupISR();
   pfstring(PSTR("uLisp 4.3a "), pserial); pln(pserial);
@@ -7581,7 +7674,7 @@ void loop () {
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  // killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
+  killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   #if defined(ULISP_WIFI)
