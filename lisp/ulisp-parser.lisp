@@ -2,7 +2,7 @@
 
 The idea here is to create a parser that can validate a set of ulisp statements
 before it is passed to the reader, in order to avoid invoking undefined behaviour
-(and also, perhaps, to get better error messages).
+and also, perhaps, to get better error messages.
 
 |#
 
