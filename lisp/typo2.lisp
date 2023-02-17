@@ -94,11 +94,6 @@
 		  (setq res (cons ln res)))))
       (reverse res))))
 
-(defun t2-reduce (fn lst)
-  (if (null (cdr lst)) (car lst)
-      (funcall fn (car lst) (t2-reduce fn (cdr lst)))))
-
-
 (defun t2-prev-line (pos buffer)
   (let* ((line (max 0 (1- (car pos))))
 	 (idx (min (cdr pos) (length (nth line buffer)))))
@@ -140,20 +135,45 @@
      (if (>= pos l) (return nil))
      (if (eq ch (char buffer pos)) (return pos)))))
 
+;; Still super slow because it iterates m times
 (defun t2-subseq* (lst n m)
-  "Returns the subsequence of lst from item n to item m-1."
-  ;; from http://www.ulisp.com/show?3GSE 
-  (cond
-   ((> n 0) (t2-subseq* (cdr lst) (1- n) (1- m)))
-   ((zerop m) nil)
-   (t (cons (car lst) (t2-subseq* (cdr lst) 0 (1- m))))))
+  (let ((head lst)
+	(res nil)
+	(skip n)
+	(take (- m n)))
+    (loop
+     (cond ((> skip 0)
+	    (setq skip (1- skip)
+		  head (cdr head)))
+	   ((> take 0)
+	    (setq take (1- take)
+		  res (cons (car head) res)
+		  head (cdr head)))
+	   (t (return))))
+    (reverse res)))
+
+;; TODO: find why this one doesn't work
+(defun t2-subseq-buggy (lst n m)
+  (let ((res nil)
+    (dotimes (i (- m n))
+      (setq res (cons (nth (+ n i) lst) res))))))
+
+(defun t2-subseq (lst n m)
+  (let ((res nil)
+	(i n))
+    (loop
+	  (if (< i m)
+	      (setq res (cons (nth i lst) res)
+		    i (1+ i))
+	      (return)))
+    (reverse res)))
 
 (defun t2-n-lines-around (lines pos buffer)
   "Returns the (max) n lines from the buffer surrounding the position."
   (if (> lines (length buffer)) (cons 0 buffer)
       (let* ((first (max 0 (- (car pos) (floor (/ lines 2)))))
 	     (last (min (+ first lines) (length buffer))))
-	(cons first (t2-subseq* buffer first last)))))
+	(cons first (t2-subseq buffer first last)))))
 
 (defun t2-prev-pos-str (buffer pos ch)
   (loop
