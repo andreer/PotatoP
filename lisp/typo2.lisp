@@ -7,7 +7,7 @@
   (loop
    (let ((q (get-key)))
      (cond
-       ((not q) (when dirty (t2-display buffer pos) (setq dirty nil)))
+       ((not q) (when dirty (time (t2-display buffer pos)) (setq dirty nil)))
        ((= q (char-code #\Escape)) (return buffer))
        (t (t2-handle-key q))))))
 
@@ -43,12 +43,11 @@
 
 (defun t2-display (buffer pos)
   (let ((l (length buffer)))
-    (set-cursor 0 0)
+    (set-cursor 0 5)
     (set-text-color black white)
     (fill-screen white)
     (with-gfx (out)
-      (format out "Cells: ~a, Lines: ~a, Pos: ~a~%~%" (room) l pos)
-      (let* ((vis (t2-n-lines-around 20 pos buffer))
+      (let* ((vis (t2-n-lines-around 24 pos buffer))
              (rel (cons (- (car pos) (car vis)) (cdr pos)))
              (vis-lines (cdr vis)))
 	(let ((line-num 0))
@@ -177,3 +176,7 @@
 		(t setq pos (decf (cons (car pos) 0)))))))
 
 ;(defun next-pos-lol (buffer pos ch)) ; TODO
+
+(defun t2 ()
+  "read in a medium sized file for perf testing"
+    (typo2 (t2-read-lines "me.txt")))
