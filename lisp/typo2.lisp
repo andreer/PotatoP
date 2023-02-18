@@ -39,14 +39,14 @@
 	     buffer (t2-insert-line buffer (car pos) one)
 	     pos (cons (car (t2-next-line pos)) 0))))
     ((= q (char-code #\Backspace))
-     (t2-del-char-lol))
+     (t2-del-char-los))
     ((= q left) (setq pos (t2-dec-pos pos buffer)))
     ((= q right) (setq pos (t2-inc-pos pos buffer)))
     ((= q up) (setq pos (t2-prev-line pos buffer)))
     ((= q down) (setq pos (t2-next-line pos)))
     ((= q (char-code #\z)) (setq pos (cons (1- (length buffer)) 0)))
     ((< q #xff)
-     (setq buffer (t2-ins-char-lol buffer (code-char q) pos)
+     (setq buffer (t2-ins-char-los buffer (code-char q) pos)
            pos (t2-inc-pos pos buffer)))))
 
 (defun t2-equal (x y)
@@ -138,13 +138,13 @@
                (subseq buffer 0 pos)
                (subseq buffer (1+ pos))))
 
-(defun t2-ins-char-lol (buffer char pos)
+(defun t2-ins-char-los (buffer char pos)
   (setf (nth (car pos) buffer)
 	(t2-ins-char-str
 	 (nth (car pos) buffer) char (cdr pos)))
   buffer)
 
-(defun t2-del-char-lol ()
+(defun t2-del-char-los ()
   (cond ((and (= 0 (cdr pos))
 	      (/= 0 (car pos)))
 	 (let* ((prev-line (nth (1- (car pos)) buffer))
@@ -176,39 +176,6 @@
      (if (>= pos l) (return nil))
      (if (eq ch (char buffer pos)) (return pos)))))
 
-;; Still super slow because it iterates m times
-(defun t2-subseq* (lst n m)
-  (let ((head lst)
-	(res nil)
-	(skip n)
-	(take (- m n)))
-    (loop
-     (cond ((> skip 0)
-	    (setq skip (1- skip)
-		  head (cdr head)))
-	   ((> take 0)
-	    (setq take (1- take)
-		  res (cons (car head) res)
-		  head (cdr head)))
-	   (t (return))))
-    (reverse res)))
-
-;; TODO: find why this one doesn't work
-(defun t2-subseq-buggy (lst n m)
-  (let ((res nil)
-    (dotimes (i (- m n))
-      (setq res (cons (nth (+ n i) lst) res))))))
-
-(defun t2-subseq (lst n m)
-  (let ((res nil)
-	(i n))
-    (loop
-	  (if (< i m)
-	      (setq res (cons (nth i lst) res)
-		    i (1+ i))
-	      (return)))
-    (reverse res)))
-
 (defun t2-n-lines-around (lines pos buffer)
   "Returns the (max) n lines from the buffer surrounding the position."
   (if (> lines (length buffer)) (cons 0 buffer)
@@ -229,14 +196,14 @@
      (if (>= pos l) (return nil))
      (if (eq ch (char buffer pos)) (return pos)))))
 
-(defun t2-prev-pos-lol (buffer pos ch) ; WIP
+(defun t2-prev-pos-los (buffer pos ch) ; WIP
   (loop
 	(let ((prev (prev-pos-str buffer (cdr pos ch))))
 	  (cond (prev (return prev))
 		(= 0 (car pos) (return nil))
 		(t setq pos (decf (cons (car pos) 0)))))))
 
-;(defun next-pos-lol (buffer pos ch)) ; TODO
+;(defun next-pos-los (buffer pos ch)) ; TODO
 
 (defun t2 ()
   "read in a medium sized file for perf testing"
