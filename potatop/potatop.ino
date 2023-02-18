@@ -15,7 +15,7 @@
 // Compile options
 
 // #define resetautorun
-// #define printfreespace
+#define printfreespace
 // #define printgcs
 #define sdcardsupport
 #define gfxsupport
@@ -33,7 +33,7 @@
 #include <limits.h>
 
 // Apollo3 specific stuff
-// #include "BurstMode.h"
+#include "BurstMode.h"
 #include "mbed.h"
 
 mbed::ScopedRamExecutionLock make_ram_executable;
@@ -455,7 +455,7 @@ K_INPUT, K_INPUT_PULLUP, K_OUTPUT, K_DEFAULT, K_EXTERNAL,
 K_INPUT, K_INPUT_PULLUP, K_INPUT_PULLDOWN, K_OUTPUT, K_GPIO_IN, K_GPIO_OUT, K_GPIO_OUT_SET,
 K_GPIO_OUT_CLR, K_GPIO_OUT_XOR, K_GPIO_OE, K_GPIO_OE_SET, K_GPIO_OE_CLR, K_GPIO_OE_XOR,
 #endif
-USERFUNCTIONS, GETERROR, REFRESH, GETKEY, PEEK, POKE, ENDFUNCTIONS, SET_SIZE = INT_MAX };
+USERFUNCTIONS, GETERROR, REFRESH, GETKEY, PEEK, POKE, SUBSEQL, ENDFUNCTIONS, SET_SIZE = INT_MAX };
 
 // Global variables
 
@@ -5294,10 +5294,22 @@ object *fn_getkey (object *args, object *env) {
   return nil;
 }
 
-object *fn_peek (object *args, object *env) {
-  (void) env;
-  int addr = checkinteger(PEEK, first(args));
-  return number(*(int *)addr);
+object *fn_peek (object *args, object *env) { // TODO andreer revert!
+  // (void) env;
+  // int addr = checkinteger(PEEK, first(args));
+  // return number(*(int *)addr);
+
+  long t0 = millis();
+  tft.setCursor(0, 0);
+  for(int i = 0; i < 1600; i++) {
+    tft.write('0' + (random()%64));
+  }
+  long t1 = millis();
+  Serial.print("Filling screen with chars took ");
+  Serial.print(t1-t0);
+  Serial.println(" ms");
+
+  return number(42);
 }
 
 object *fn_poke (object *args, object *env) {
@@ -5306,6 +5318,38 @@ object *fn_poke (object *args, object *env) {
   object *val = second(args);
   *(int *)addr = checkinteger(POKE, val);
   return val;
+}
+
+object *fn_subseql (object *args, object *env) {
+  // not an elegant implementation, but much faster than an interpreted one
+  (void) env;
+  object *list = first(args);
+  if (!listp(list)) error(SUBSEQL, notalist, list);
+  int start = checkinteger(SUBSEQL, second(args));
+  int end = -1;
+  if (cddr(args) != NULL) {
+    end = checkinteger(SUBSEQL, third(args));
+  }
+
+  while(start-->0 && list != NULL) {
+    if (improperp(list)) error(SUBSEQL, notproper, list);
+    list = cdr(list);
+    end--;
+  }
+  if(end <= 0) return list;
+  object *head = myalloc();
+  object *s = head;
+  object *prev = list;
+  while(end-->0 && list != NULL) {
+    if (improperp(list)) error(SUBSEQL, notproper, list);
+    head->car = car(list);
+    head->cdr = myalloc();
+    list = cdr(list);
+    prev = head;
+    head = head->cdr;
+  }
+  prev->cdr = NULL;
+  return s;
 }
 
 // Built-in symbol names
@@ -5717,6 +5761,7 @@ const char mystring1[] PROGMEM = "refresh";
 const char mystring2[] PROGMEM = "get-key";
 const char mystring3[] PROGMEM = "peek";
 const char mystring4[] PROGMEM = "poke";
+const char mystring5[] PROGMEM = "subseql";
 const char user06975b647a442ae56f6ee0abc8fb[] PROGMEM = "get-error";
 
 // Documentation strings
@@ -6236,6 +6281,9 @@ const char mydoc[] PROGMEM = "(refresh)\n"
 const char mydoc2[] PROGMEM = "(get-key)\n"
 "Returns a key event, or nil if there are no key events in the queue.";
 
+const char mydoc5[] PROGMEM = "(subseql list start [end])\n"
+"Returns a subsequence of the list, from start to end";
+
 const char peekdoc[] PROGMEM = "(peek address)\n"
 "Returns the contents of the specified memory address.";
 const char pokedoc[] PROGMEM = "(poke address value)\n"
@@ -6650,7 +6698,8 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { mystring1, fn_refresh, 0x00, mydoc },
   { mystring2, fn_getkey, 0x00, mydoc2 },
   { mystring3, fn_peek, 0x11, peekdoc },
-  { mystring4, fn_poke, 0x22, pokedoc }
+  { mystring4, fn_poke, 0x22, pokedoc },
+  { mystring5, fn_subseql, 0x22, mydoc5 }
 };
 
 // Table lookup functions
@@ -7456,6 +7505,8 @@ extern "C" void keyboard_isr()
       am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // Yes, do this three times.
       am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // Gives it some
       am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // time to settle
+      am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // time to settle
+      am_hal_gpio_state_read(col, AM_HAL_GPIO_INPUT_READ, &keyState); // time to settle
       currentKeyState[j] |= (!keyState) << i;
 
       if (keyState == reportedKeyState[j] >> i) {
@@ -7605,7 +7656,7 @@ void sd_off() {
 
 void setup () {
   // enableBurstMode();
-  Serial.begin(19200);
+  Serial.begin(9600);
   int start = millis();
   while ((millis() - start) < 5000) { if (Serial) break; }
   initworkspace();
@@ -7674,7 +7725,7 @@ void loop () {
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
+  // killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   #if defined(ULISP_WIFI)

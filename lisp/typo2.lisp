@@ -1,39 +1,53 @@
+; a simple text editor with a list-of-strings data structure
+
 (defun typo2 (list-of-strings)
   (defvar buffer list-of-strings)
   (defvar dirty t)
   (defvar pos '(0 . 0))
+  (defvar cur black)
+  (defvar cur-last (millis))
   (clear-key-buffer)
   (fill-screen white)
   (loop
    (let ((q (get-key)))
      (cond
-       ((not q) (when dirty (time (t2-display buffer pos)) (setq dirty nil)))
+       ((not q)
+	(cond (dirty
+	       (t2-display buffer pos)
+	       (setq dirty nil))
+	      (t (when (< (+ cur-last 600) (millis))
+		   (setf cur (mod (1+ cur) 2)
+			 cur-last (millis)
+			 dirty t)))))
        ((= q (char-code #\Escape)) (return buffer))
-       (t (t2-handle-key q))))))
+       (t (time (progn (t2-handle-key q) nothing)))))))
 
 (defun type2 ()
   (typo2 '("")))
 
 (defun t2-handle-key (q)
+  (setq cur black
+	cur-last (millis)
+	dirty t)
   (cond
+    ((= q (char-code #\Newline))
+     (let* ((line (nth (car pos) buffer))
+	    (one (subseq line 0 (cdr pos)))
+	    (two (subseq line (cdr pos) (length line))))
+       (setq buffer (t2-remove-line buffer (car pos))
+	     buffer (t2-insert-line buffer (car pos) two)
+	     buffer (t2-insert-line buffer (car pos) one)
+	     pos (cons (car (t2-next-line pos)) 0))))
     ((= q (char-code #\Backspace))
-     (let ((before (t2-dec-pos pos buffer)))
-       (if (not (t2-equal pos before))
-	   (t2-del-char-lol buffer before))
-       (setq pos before
-	     dirty t)))
-    ((= q left) (setq pos (t2-dec-pos pos buffer)
-                      dirty t))
-    ((= q right) (setq pos (t2-inc-pos pos buffer)
-                       dirty t))
-    ((= q up) (setq pos (t2-prev-line pos buffer)
-                    dirty t))
-    ((= q down) (setq pos (t2-next-line pos)
-                      dirty t))
+     (t2-del-char-lol))
+    ((= q left) (setq pos (t2-dec-pos pos buffer)))
+    ((= q right) (setq pos (t2-inc-pos pos buffer)))
+    ((= q up) (setq pos (t2-prev-line pos buffer)))
+    ((= q down) (setq pos (t2-next-line pos)))
+    ((= q (char-code #\z)) (setq pos (cons (1- (length buffer)) 0)))
     ((< q #xff)
      (setq buffer (t2-ins-char-lol buffer (code-char q) pos)
-           pos (t2-inc-pos pos buffer)
-           dirty t))))
+           pos (t2-inc-pos pos buffer)))))
 
 (defun t2-equal (x y)
   (cond
@@ -41,17 +55,27 @@
    ((and (consp x) (consp y)) (and (t2-equal (car x) (car y)) (t2-equal (cdr x) (cdr y))))
    (t (eq x y))))
 
+(defun t2-insert-line (buffer n line) ; probably too slow
+  (append (subseql buffer 0 n) (list line) (subseql buffer n (length buffer))))
+
+(defun t2-remove-line (buffer n) ; probably too slow
+  (append (subseql buffer 0 n) (subseql buffer (1+ n) (length buffer))))
+
 (defun t2-display (buffer pos)
   (let ((l (length buffer)))
-    (set-cursor 0 5)
+    (set-cursor 0 0)
     (set-text-color black white)
+    (set-text-wrap nil)
     (fill-screen white)
     (with-gfx (out)
-      (let* ((vis (t2-n-lines-around 24 pos buffer))
+      (gc)
+      (format out "~a Pos: ~a / ~a~%~%" (room) pos l)
+      (let* ((vis (t2-n-lines-around 28 pos buffer))
              (rel (cons (- (car pos) (car vis)) (cdr pos)))
              (vis-lines (cdr vis)))
 	(let ((line-num 0))
 	  (dolist (line vis-lines)
+	    (set-cursor 1 (* 8 (+ line-num 2)))
 	    (cond ((= line-num (car rel))
 		   (princ (subseq line 0 (cdr rel)) out)
 		   (set-text-color white black)
@@ -63,14 +87,18 @@
 		   (terpri out))
 		  (t (princ line out) (terpri out)))
 	    (incf line-num)))
+	(t2-draw-cursor (* 6 (cdr rel)) (* 8 (+ 2 (car rel))))
 	(refresh)))))
+
+(defun t2-draw-cursor (x y)
+  (draw-line x (1- y) x (+ y 8) cur))
 
 (defun t2-dec-pos (pos buffer)
   (cond ((= 0 (car pos))
 	 (cons 0 (max 0 (1- (cdr pos)))))
 	((= 0 (cdr pos))
 	 (cons (1- (car pos))
-	       (1- (length (nth (1- (car pos)) buffer)))))
+	       (length (nth (1- (car pos)) buffer))))
 	(t (cons (car pos) (1- (cdr pos))))))
 
 (defun t2-inc-pos (pos buffer)
@@ -116,11 +144,24 @@
 	 (nth (car pos) buffer) char (cdr pos)))
   buffer)
 
-(defun t2-del-char-lol (buffer pos)
-    (setf (nth (car pos) buffer)
-	(t2-del-char-str
-	 (nth (car pos) buffer) (cdr pos)))
-  buffer)
+(defun t2-del-char-lol ()
+  (cond ((and (= 0 (cdr pos))
+	      (/= 0 (car pos)))
+	 (let* ((prev-line (nth (1- (car pos)) buffer))
+		(this-line (nth (car pos) buffer))
+		(new-line (concatenate 'string prev-line this-line))
+		(new-pos (cons (1- (car pos)) (length prev-line))))
+	   (setf buffer (t2-remove-line buffer (1- (car pos)))
+		 buffer (t2-remove-line buffer (1- (car pos)))
+		 buffer (t2-insert-line buffer (1- (car pos)) new-line)
+		 pos new-pos))
+	 buffer)
+	((> (cdr pos) 0)
+	 (setf (nth (car pos) buffer)
+	       (t2-del-char-str
+		(nth (car pos) buffer) (1- (cdr pos)))
+	       pos (cons (car pos) (1- (cdr pos))))
+	 buffer)))
 
 (defun t2-prev-pos (buffer pos ch)
   (loop
@@ -173,7 +214,7 @@
   (if (> lines (length buffer)) (cons 0 buffer)
       (let* ((first (max 0 (- (car pos) (floor (/ lines 2)))))
 	     (last (min (+ first lines) (length buffer))))
-	(cons first (t2-subseq buffer first last)))))
+	(cons first (subseql buffer first last)))))
 
 (defun t2-prev-pos-str (buffer pos ch)
   (loop
@@ -199,4 +240,4 @@
 
 (defun t2 ()
   "read in a medium sized file for perf testing"
-    (typo2 (t2-read-lines "me.txt")))
+  (typo2 (t2-read-lines "me.txt")))
