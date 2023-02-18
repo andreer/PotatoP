@@ -28,3 +28,13 @@
 		    head (cdr head))))
     sum))
 
+(defun r ()
+  (fill-screen white)
+  (dotimes (i 16)
+    (draw-char i (+ 100 (* i 8)) #\F))
+  (refresh))
+
+(defun add (a b)
+  (if (= b 0) a
+      (1+ (add a (1- b)))))
+
