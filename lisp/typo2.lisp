@@ -20,10 +20,10 @@
 			 cur-last (millis)
 			 dirty t)))))
        ((= q (char-code #\Escape)) (return buffer))
-       (t (time (progn (t2-handle-key q) nothing)))))))
+       (t (t2-handle-key q))))))
 
 (defun type2 ()
-  (typo2 '("")))
+  (typo2 (list "")))
 
 (defun t2-handle-key (q)
   (setq cur black
@@ -49,17 +49,15 @@
      (setq buffer (t2-ins-char-los buffer (code-char q) pos)
            pos (t2-inc-pos pos buffer)))))
 
-(defun t2-equal (x y)
-  (cond
-   ((and (stringp x) (stringp y)) (string= x y))
-   ((and (consp x) (consp y)) (and (t2-equal (car x) (car y)) (t2-equal (cdr x) (cdr y))))
-   (t (eq x y))))
+(defun t2-insert-line (buffer n line)
+  (append (t2-subseql buffer 0 n)
+	  (list line)
+	  (t2-subseql buffer n (length buffer))))
 
-(defun t2-insert-line (buffer n line) ; probably too slow
-  (append (subseql buffer 0 n) (list line) (subseql buffer n (length buffer))))
-
-(defun t2-remove-line (buffer n) ; probably too slow
-  (append (subseql buffer 0 n) (subseql buffer (1+ n) (length buffer))))
+(defun t2-remove-line (buffer n)
+  (append (t2-subseql buffer 0 n)
+	  (t2-subseql buffer (1+ n)
+		      (length buffer))))
 
 (defun t2-display (buffer pos)
   (let ((l (length buffer)))
@@ -68,14 +66,12 @@
     (set-text-wrap nil)
     (fill-screen white)
     (with-gfx (out)
-      (gc)
-      (format out "~a Pos: ~a / ~a~%~%" (room) pos l)
-      (let* ((vis (t2-n-lines-around 28 pos buffer))
+      (let* ((vis (t2-n-lines-around 30 pos buffer))
              (rel (cons (- (car pos) (car vis)) (cdr pos)))
              (vis-lines (cdr vis)))
 	(let ((line-num 0))
 	  (dolist (line vis-lines)
-	    (set-cursor 1 (* 8 (+ line-num 2)))
+	    (set-cursor 1 (* 8 line-num))
 	    (cond ((= line-num (car rel))
 		   (princ (subseq line 0 (cdr rel)) out)
 		   (set-text-color white black)
@@ -87,7 +83,7 @@
 		   (terpri out))
 		  (t (princ line out) (terpri out)))
 	    (incf line-num)))
-	(t2-draw-cursor (* 6 (cdr rel)) (* 8 (+ 2 (car rel))))
+	(t2-draw-cursor (* 6 (cdr rel)) (* 8 (car rel)))
 	(refresh)))))
 
 (defun t2-draw-cursor (x y)
@@ -112,15 +108,6 @@
   (let* ((line (min (1- (length buffer)) (1+ (car pos))))
 	 (idx (min (cdr pos) (length (nth line buffer)))))
     (cons line idx)))
-
-(defun t2-read-lines (filename)
-  (with-sd-card (sd filename)
-    (let ((res nil))
-      (loop
-	    (let ((ln (read-line sd)))
-	      (if (not ln) (return)
-		  (setq res (cons ln res)))))
-      (reverse res))))
 
 (defun t2-prev-line (pos buffer)
   (let* ((line (max 0 (1- (car pos))))
@@ -181,7 +168,10 @@
   (if (> lines (length buffer)) (cons 0 buffer)
       (let* ((first (max 0 (- (car pos) (floor (/ lines 2)))))
 	     (last (min (+ first lines) (length buffer))))
-	(cons first (subseql buffer first last)))))
+	(cons first (t2-subseql buffer first last)))))
+
+(defun t2-subseql (list n m)
+  (reverse (subseql list n m)))
 
 (defun t2-prev-pos-str (buffer pos ch)
   (loop
@@ -203,8 +193,24 @@
 		(= 0 (car pos) (return nil))
 		(t setq pos (decf (cons (car pos) 0)))))))
 
-;(defun next-pos-los (buffer pos ch)) ; TODO
+;;(defun next-pos-los (buffer pos ch)) ; TODO
 
-(defun t2 ()
-  "read in a medium sized file for perf testing"
-  (typo2 (t2-read-lines "me.txt")))
+(defun t2-join-lines (los)
+  (with-output-to-string (str)
+    (dolist (line los)
+      (princ line str)
+      (terpri str))))
+
+(defun t2-read-lines (filename)
+  (with-sd-card (sd filename)
+    (let ((res nil))
+      (loop
+	    (let ((ln (read-line sd)))
+	      (if (not ln) (return)
+		  (setq res (cons ln res)))))
+      (reverse res))))
+
+(defun t2-write-lines (los filename)
+  (with-sd-card (sd filename 2)
+    (dolist (line los 'done)
+      (write-line line sd))))

@@ -22,7 +22,7 @@ TODO:
     (loop
      (let ((q (get-key)))
        (cond
-         ((not q) (when dirty (time (display buffer pos)) (setq dirty nil)))
+         ((not q) (when dirty (display buffer pos) (setq dirty nil)))
          ((= q (char-code #\Escape)) (return buffer))
          ((= q (char-code #\Backspace))
           (if (> pos 0)

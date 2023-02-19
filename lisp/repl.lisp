@@ -9,12 +9,14 @@
   (loop
    (ignore-errors
      (with-gfx (gfx)
-       (let ((typed (type)))
+       (let ((typed (t2-join-lines (type2))))
 	 (if (eq 0 (length typed)) (setq typed "nil"))
 	 (if (string= "q" typed) (return))
 	 (error) ; clear any previous error
 	 (ignore-errors
-	   (format gfx "~%~%~a~%~%" (eval (read-from-string typed))))
+	   (terpri gfx)
+	   (print (eval (read-from-string typed)) gfx)
+	   (terpri gfx))
 	 (if (get-error)
 	     (format gfx "~%~%Error: ~a~%" (get-error)))
 	 (refresh)

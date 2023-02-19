@@ -5329,27 +5329,30 @@ object *fn_subseql (object *args, object *env) {
   int end = -1;
   if (cddr(args) != NULL) {
     end = checkinteger(SUBSEQL, third(args));
+  } else {
+    end = 1<<30;
   }
 
-  while(start-->0 && list != NULL) {
+  if(start < 0 || end <= start) return NULL;
+
+  object *res = NULL;
+  int skip = start;
+  int take = end-start;
+
+  for(int i = 0; i < skip; i++) {
+    if (list == NULL) return NULL;
     if (improperp(list)) error(SUBSEQL, notproper, list);
     list = cdr(list);
-    end--;
   }
-  if(end <= 0) return list;
-  object *head = myalloc();
-  object *s = head;
-  object *prev = list;
-  while(end-->0 && list != NULL) {
+
+  for (int i = 0; i < take; i++) {
+    if (list == NULL) break;
     if (improperp(list)) error(SUBSEQL, notproper, list);
-    head->car = car(list);
-    head->cdr = myalloc();
+    res = cons(car(list), res);
     list = cdr(list);
-    prev = head;
-    head = head->cdr;
   }
-  prev->cdr = NULL;
-  return s;
+
+  return res;
 }
 
 // Built-in symbol names
@@ -7666,7 +7669,7 @@ void setup () {
   initsd();
   setupKeyboard();
   setupISR();
-  pfstring(PSTR("uLisp 4.3a "), pserial); pln(pserial);
+  pln(pserial); pfstring(PSTR("--- uLisp 4.3a ---"), pserial); pln(pserial);
 }
 
 void killSerial() {
