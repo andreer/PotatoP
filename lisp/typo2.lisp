@@ -212,5 +212,10 @@
 
 (defun t2-write-lines (los filename)
   (with-sd-card (sd filename 2)
-    (dolist (line los 'done)
+    (dolist (line los 'saved)
       (write-line line sd))))
+
+(defun t2 (filename)
+  (t2-write-lines
+   (typo2 (t2-read-lines filename))
+   filename))

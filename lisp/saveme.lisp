@@ -16,5 +16,10 @@
  (defvar me (with-sd-card (sd "me.txt") (read sd)))
  (length me))
 
+(defun ev (filename)
+  (eval (read-from-string
+	 (t2-join-lines
+	  (t2-read-lines filename)))))
+
 (defun done ()
  'done)
