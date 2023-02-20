@@ -5285,9 +5285,6 @@ object *fn_getkey (object *args, object *env) {
   if(keyEventReadPtr < readTo) {
     int k = keyEvents[keyEventReadPtr % KEYEVENT_BUFFER_SIZE];
     keyEventReadPtr++;
-
-    Serial.println(k);
-
     return number(k);
   }
 
@@ -5297,21 +5294,21 @@ object *fn_getkey (object *args, object *env) {
 }
 
 object *fn_peek (object *args, object *env) { // TODO andreer revert!
-  // (void) env;
-  // int addr = checkinteger(PEEK, first(args));
-  // return number(*(int *)addr);
+  (void) env;
+  int addr = checkinteger(PEEK, first(args));
+  return number(*(int *)addr);
 
-  long t0 = millis();
-  tft.setCursor(0, 0);
-  for(int i = 0; i < 1600; i++) {
-    tft.write('0' + (random()%64));
-  }
-  long t1 = millis();
-  Serial.print("Filling screen with chars took ");
-  Serial.print(t1-t0);
-  Serial.println(" ms");
+  // long t0 = millis();
+  // tft.setCursor(0, 0);
+  // for(int i = 0; i < 1600; i++) {
+  //   tft.write('0' + (random()%64));
+  // }
+  // long t1 = millis();
+  // Serial.print("Filling screen with chars took ");
+  // Serial.print(t1-t0);
+  // Serial.println(" ms");
 
-  return number(42);
+  // return number(42);
 }
 
 object *fn_poke (object *args, object *env) {
@@ -7530,7 +7527,6 @@ extern "C" void keyboard_isr()
           reportKeyAgainIn[i][j] = DEBOUNCE_CYCLES;
           if (keyEventWritePtr >= keyEventReadPtr + KEYEVENT_BUFFER_SIZE) return; // we will lose keyEvents ...
           keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = modifiers | (keyState << 15) | (shift ? KeymapShifted[i * COLS + j] : Keymap[i * COLS + j]);
-          // Serial.println(modifiers, HEX);
           keyEventWritePtr++;
         }
       }
