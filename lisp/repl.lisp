@@ -1,7 +1,7 @@
 (defun wait-for-key-press (gfx)
   (format gfx "> Press any key to continue~%")
   (refresh)
-  (clear-key-buffer)
+  (t2-clear-key-buffer)
   (loop (let ((key (get-key)))
           (if (and key (not (logbitp 15 key)))
               (return)))))
