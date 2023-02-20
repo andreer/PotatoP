@@ -14,10 +14,13 @@
    (+ (* (cdr x) (car y)) (* (car x) (cdr y)))))
 
 (defun c/ (x y)
-  (let ((den (+ (* (car y) (car y)) (* (cdr y) (cdr y)))))
+  (let ((den (+ (* (car y) (car y))
+		(* (cdr y) (cdr y)))))
     (cx
-     (/ (+ (* (car x) (car y)) (* (cdr x) (cdr y))) den)
-     (/ (- (* (cdr x) (car y)) (* (car x) (cdr y))) den))))
+     (/ (+ (* (car x) (car y)) (* (cdr x) (cdr y)))
+	den)
+     (/ (- (* (cdr x) (car y)) (* (car x) (cdr y)))
+	den))))
 
 (defun cexp (x)
   (cx
@@ -43,16 +46,24 @@
           ((even (fft (evens x)))
            (odd (fft (odds x)))
            (k -1)
-           (aux (mapcar 
-		 (lambda (j) 
-                   (c* (cexp (c/ (c* (cx 0 -2) (cx (* pi (incf k)) 0)) (cx (length x) 0))) j)) 
-		 odd)))
-	(append (mapcar c+ even aux) (mapcar c- even aux)))))
+           (aux
+	    (mapcar
+	     (lambda (j)
+               (c*
+		(cexp (c/ (c* (cx 0 -2)
+			      (cx (* pi (incf k)) 0))
+			  (cx (length x) 0)))
+		j))
+	     odd)))
+	(append
+	 (mapcar c+ even aux)
+	 (mapcar c- even aux)))))
 
-(defun fftr (r) (fft (mapcar (lambda (x) (cx x 0)) r)))
-
-#| (pprint (fftr '(1 1 1 1 0 0 0 0))) |#
+(defun fftr (r)
+  (fft (mapcar (lambda (x) (cx x 0)) r)))
 
 (defun bench-fft (times)
   (dotimes (i times)
-  (fftr (let (z) (dotimes (x 16) (push 0 z)) (dotimes (x 16) (push 1 z)) z))))
+    (fftr (let (z)
+	    (dotimes (x 16) (push 0 z))
+	    (dotimes (x 16) (push 1 z)) z))))

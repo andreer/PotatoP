@@ -1,8 +1,10 @@
-;;
-;; Barnsley Fern
-;; only very slightly modified from johnsondavies's code:
-;; http://forum.ulisp.com/t/barnsley-fern-in-ulisp/1087
-;;
+#|
+Barnsley Fern
+
+very slightly modified from johnsondavies' code in
+http://forum.ulisp.com/t/barnsley-fern-in-ulisp/1087
+|#
+
 (defvar *width* 240)
 (defvar *height* 320)
 (defvar *factor* (/ *height* 7))
@@ -19,17 +21,23 @@
 
 (defun fn (n)
   #'(lambda (x y)
-      (list (+ (* (aref f n 0) x) (* (aref f n 1) y) (aref f n 4))
-            (+ (* (aref f n 2) x) (* (aref f n 3) y) (aref f n 5)))))
+      (list (+ (* (aref f n 0) x)
+	       (* (aref f n 1) y)
+	       (aref f n 4))
+            (+ (* (aref f n 2) x)
+	       (* (aref f n 3) y)
+	       (aref f n 5)))))
 
 (defun choose-transform ()
   (let ((r (random 1.0)) (p 0))
     (dotimes (i 4)
-      (when (<= r (incf p (aref f i 6))) (return (fn i))))))
+      (when (<= r (incf p (aref f i 6)))
+	(return (fn i))))))
 
 (defun plot-pixel (x y)
   (let ((xx (round (+ (* *factor* y) *y-offset*)))
-        (yy (round (- *width* (+ (* *factor* x) *x-offset*)))))
+        (yy (round (- *width* (+ (* *factor* x)
+				 *x-offset*)))))
     (draw-pixel xx yy black)))
 
 (defun fern (&optional (iterations 50000))

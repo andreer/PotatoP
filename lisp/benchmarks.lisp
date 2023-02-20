@@ -30,7 +30,8 @@
 
 (defun factorize (n)
   (let ((f (factor n)))
-    (if (= n f) (list n) (cons f (factorize (/ n f))))))
+    (if (= n f) (list n)
+	(cons f (factorize (/ n f))))))
 
 (defun crc32 (str)
   (let ((crc #xFFFFFFFF))
@@ -40,8 +41,10 @@
         (dotimes (i 8)
           (setq crc 
                 (if (oddp (logxor n crc))
-                    (logxor (logand (ash crc -1) #x7FFFFFFF) #xEDB88320)
-                  (logand (ash crc -1) #x7FFFFFFF)))
+                    (logxor
+		     (logand (ash crc -1) #x7FFFFFFF)
+		     #xEDB88320)
+                    (logand (ash crc -1) #x7FFFFFFF)))
           (setq n (ash n -1)))))
     (logxor crc #xFFFFFFFF)))
 

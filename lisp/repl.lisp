@@ -3,22 +3,24 @@
   (refresh)
   (clear-key-buffer)
   (loop (let ((key (get-key)))
-	  (if (and key (not (logbitp 8 key))) (return)))))
+	  (if (and key (not (logbitp 15 key)))
+	      (return)))))
 
 (defun gfx-repl ()
   (loop
    (ignore-errors
      (with-gfx (gfx)
-       (let ((typed (t2-join-lines (type2))))
-	 (if (eq 0 (length typed)) (setq typed "nil"))
-	 (if (string= "q" typed) (return))
+       (let ((inp (t2-join-lines (type2))))
+	 (if (eq 0 (length inp)) (setq inp "()"))
+	 (if (string= "q" inp) (return))
 	 (error) ; clear any previous error
 	 (ignore-errors
 	   (terpri gfx)
-	   (print (eval (read-from-string typed)) gfx)
+	   (print (eval (read-from-string inp)) gfx)
 	   (terpri gfx))
 	 (if (get-error)
-	     (format gfx "~%~%Error: ~a~%" (get-error)))
+	     (format gfx "~%~%Error: ~a~%"
+		     (get-error)))
 	 (refresh)
 	 (wait-for-key-press gfx))))))
 
