@@ -1,13 +1,24 @@
 ;; a simple text editor with a
 ;; list-of-strings data structure
 
+(defvar black 0)
+(defvar white 1)
+
+(defvar left #x11)
+(defvar right #x10)
+(defvar up #x1e)
+(defvar down #x1f)
+
+(defun t2-clear-key-buffer ()
+  (loop (if (not (get-key)) (return))))
+
 (defun typo2 (list-of-strings)
   (defvar buffer list-of-strings)
   (defvar dirty t)
   (defvar pos '(0 . 0))
   (defvar cur black)
   (defvar cur-last (millis))
-  (clear-key-buffer)
+  (t2-clear-key-buffer)
   (fill-screen white)
   (loop
    (let ((q (get-key)))
