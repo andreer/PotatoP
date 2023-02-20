@@ -72,13 +72,12 @@ Adafruit_SharpMem tft(&mySPI, SHARP_CS, 320, 240, SPI_FREQ);
 #endif
 
 
-
 // Keyboard support
 
 #define KEYEVENT_BUFFER_SIZE 100
 volatile uint32_t keyEventWritePtr = 0;
 volatile uint32_t keyEventReadPtr = 0;
-volatile uint32_t keyEvents[KEYEVENT_BUFFER_SIZE];
+volatile int16_t keyEvents[KEYEVENT_BUFFER_SIZE];
 uint32_t keyEventNum = 0;
 
 #define ROWS 8
@@ -1736,13 +1735,13 @@ object *copystring (object *arg) {
   return obj;
 }
 
-object *readstring (uint8_t delim, gfun_t gfun) {
+object *readstring (uint8_t delim, gfun_t gfun, bool ignoreBackslash) {
   object *obj = newstring();
   object *tail = obj;
   int ch = gfun();
   if (ch == -1) return nil;
   while ((ch != delim) && (ch != -1)) {
-    if (ch == '\\') ch = gfun();
+    if (ignoreBackslash && ch == '\\') ch = gfun();
     buildstring(ch, &tail);
     ch = gfun();
   }
@@ -4528,7 +4527,7 @@ object *fn_readbyte (object *args, object *env) {
 object *fn_readline (object *args, object *env) {
   (void) env;
   gfun_t gfun = gstreamfun(args);
-  return readstring('\n', gfun);
+  return readstring('\n', gfun, false);
 }
 
 object *fn_writebyte (object *args, object *env) {
@@ -5286,6 +5285,9 @@ object *fn_getkey (object *args, object *env) {
   if(keyEventReadPtr < readTo) {
     int k = keyEvents[keyEventReadPtr % KEYEVENT_BUFFER_SIZE];
     keyEventReadPtr++;
+
+    Serial.println(k);
+
     return number(k);
   }
 
@@ -6739,7 +6741,7 @@ char *lookupdoc (builtin_t name) {
 void testescape () {
   int pos = (KEYEVENT_BUFFER_SIZE + keyEventWritePtr-1)%KEYEVENT_BUFFER_SIZE;
   uint32_t lastKeyEvent = keyEvents[pos];
-  if (lastKeyEvent == '~') {
+  if ( lastKeyEvent == 4123 ) { // Fn + Esc
     keyEvents[pos] = 0;
     error2(NIL, PSTR("escape key"));
   } else if (Serial.read() == '~') error2(NIL, PSTR("serial escape"));
@@ -7289,7 +7291,7 @@ object *nextitem (gfun_t gfun) {
   if (ch == '\'') return (object *)QUO;
 
   // Parse string
-  if (ch == '"') return readstring('"', gfun);
+  if (ch == '"') return readstring('"', gfun, true);
 
   // Parse symbol, character, or number
   int index = 0, base = 10, sign = 1;
@@ -7490,7 +7492,13 @@ extern "C" void keyboard_isr()
   keyEventNum++;
   int i, j;
 
-  boolean shifted = (currentKeyState[5] != 0);
+  boolean shift = (currentKeyState[5] != 0);
+  boolean control = (currentKeyState[12] != 0);
+  boolean meta = (currentKeyState[13] != 0);
+  boolean super = ((currentKeyState[0]&1 != 0) || (currentKeyState[7]&2 != 0));
+  boolean hyper = (currentKeyState[0] & 1<<7) != 0;
+
+  int modifiers = (shift << 8) | (control << 9) | (meta << 10) | (super << 11) | (hyper << 12);
 
   for (int i = 0; i < COLS; i++) {
     currentKeyState[i] = 0;
@@ -7521,7 +7529,8 @@ extern "C" void keyboard_isr()
           }
           reportKeyAgainIn[i][j] = DEBOUNCE_CYCLES;
           if (keyEventWritePtr >= keyEventReadPtr + KEYEVENT_BUFFER_SIZE) return; // we will lose keyEvents ...
-          keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = (keyState << 8) + (shifted ? KeymapShifted[i * COLS + j] : Keymap[i * COLS + j]);
+          keyEvents[keyEventWritePtr % KEYEVENT_BUFFER_SIZE] = modifiers | (keyState << 15) | (shift ? KeymapShifted[i * COLS + j] : Keymap[i * COLS + j]);
+          // Serial.println(modifiers, HEX);
           keyEventWritePtr++;
         }
       }
