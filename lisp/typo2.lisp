@@ -1,4 +1,5 @@
-; a simple text editor with a list-of-strings data structure
+;; a simple text editor with a
+;; list-of-strings data structure
 
 (defun typo2 (list-of-strings)
   (defvar buffer list-of-strings)
@@ -33,10 +34,13 @@
     ((= q (char-code #\Newline))
      (let* ((line (nth (car pos) buffer))
 	    (one (subseq line 0 (cdr pos)))
-	    (two (subseq line (cdr pos) (length line))))
+	    (two (subseq line (cdr pos)
+			 (length line))))
        (setq buffer (t2-remove-line buffer (car pos))
-	     buffer (t2-insert-line buffer (car pos) two)
-	     buffer (t2-insert-line buffer (car pos) one)
+	     buffer (t2-insert-line buffer
+				    (car pos) two)
+	     buffer (t2-insert-line buffer
+				    (car pos) one)
 	     pos (cons (car (t2-next-line pos)) 0))))
     ((= q (char-code #\Backspace))
      (t2-del-char-los))
@@ -44,10 +48,17 @@
     ((= q right) (setq pos (t2-inc-pos pos buffer)))
     ((= q up) (setq pos (t2-prev-line pos buffer)))
     ((= q down) (setq pos (t2-next-line pos)))
-    ((= q (char-code #\z)) (setq pos (cons (1- (length buffer)) 0)))
-    ((< q #xff)
-     (setq buffer (t2-ins-char-los buffer (code-char q) pos)
-           pos (t2-inc-pos pos buffer)))))
+    ((= q (char-code #\Escape)) ; find what "end" is
+     (setq pos (cons (1- (length buffer)) 0)))
+    ((not (plusp q)) nothing) ;ignore keyup events
+    ((/= 255 (logand 255 q)) ; modifier
+     (setq buffer
+	   (t2-ins-char-los buffer
+			    (code-char
+			     (logand 255 q))
+			    pos)
+           pos
+	   (t2-inc-pos pos buffer)))))
 
 (defun t2-insert-line (buffer n line)
   (append (t2-subseql buffer 0 n)
@@ -188,10 +199,12 @@
 
 (defun t2-prev-pos-los (buffer pos ch) ; WIP
   (loop
-	(let ((prev (prev-pos-str buffer (cdr pos ch))))
+   (let ((prev (prev-pos-str buffer
+			     (cdr pos ch))))
 	  (cond (prev (return prev))
 		(= 0 (car pos) (return nil))
-		(t setq pos (decf (cons (car pos) 0)))))))
+		(t setq pos
+		   (decf (cons (car pos) 0)))))))
 
 ;;(defun next-pos-los (buffer pos ch)) ; TODO
 
