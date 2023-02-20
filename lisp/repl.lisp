@@ -24,3 +24,8 @@
          (refresh)
          (wait-for-key-press gfx))))))
 
+(defun load (filename)
+  (eval
+   (read-from-string
+    (t2-join-lines
+     (t2-read-lines filename)))))
