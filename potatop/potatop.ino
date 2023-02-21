@@ -504,7 +504,7 @@ object *errorsub (symbol_t fname, PGM_P string) {
 
   // store error message in string object for GET-ERROR
   object *obj = startstring(SP_ERROR);
-    if (fname) {
+    if (fname != sym(NIL)) {
     pstr('\'');
     psymbol(fname, pstr);
     pstr('\''); pstr(' ');
@@ -7733,7 +7733,7 @@ void loop () {
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  // killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
+  killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   #if defined(ULISP_WIFI)
