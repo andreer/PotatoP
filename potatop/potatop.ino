@@ -132,8 +132,6 @@ const char KeymapShifted[] PROGMEM =
    __   __  "^"   __  "~"   __   __"\x1e" "_"  "+"  "%"   __   __   __; // 7
 
 
-//&Keymap[(3-row)*11 + column + 44*shift]
-
 uint8_t currentKeyState[COLS];
 uint8_t reportedKeyState[COLS];
 uint8_t reportKeyAgainIn[ROWS][COLS];
@@ -7492,7 +7490,7 @@ extern "C" void keyboard_isr()
   boolean shift = (currentKeyState[5] != 0);
   boolean control = (currentKeyState[12] != 0);
   boolean meta = (currentKeyState[13] != 0);
-  boolean super = ((currentKeyState[0]&1 != 0) || (currentKeyState[7]&2 != 0));
+  boolean super = ((currentKeyState[0]&1) != 0) | ((currentKeyState[7]&2) != 0);
   boolean hyper = (currentKeyState[0] & 1<<7) != 0;
 
   int modifiers = (shift << 8) | (control << 9) | (meta << 10) | (super << 11) | (hyper << 12);
