@@ -28,4 +28,7 @@
   (eval
    (read-from-string
     (t2-join-lines
-     (t2-read-lines filename)))))
+     (append
+      (list "(progn ")
+      (t2-read-lines filename)
+      (list ")"))))))
