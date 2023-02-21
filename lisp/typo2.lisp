@@ -9,6 +9,10 @@
 (defvar up #x1e)
 (defvar down #x1f)
 
+(defvar pgup 4126)
+(defvar pgdn 4127)
+(defvar c-k 619)
+
 (defun t2-clear-key-buffer ()
   (loop (if (not (get-key)) (return))))
 
@@ -37,6 +41,17 @@
 (defun type2 ()
   (typo2 (list "")))
 
+(defun scroll-down (n)
+ (setq pos (cons
+             (min (length buffer)
+                  (+ n (car pos)))
+             0)))
+
+(defun scroll-up (n)
+ (setq pos (cons
+             (max 0 (- (car pos) n))
+             0)))
+
 (defun t2-handle-key (q)
   (setq cur black
         cur-last (millis)
@@ -55,11 +70,15 @@
              pos (cons (car (t2-next-line pos)) 0))))
     ((= q (char-code #\Backspace))
      (t2-del-char-los))
+    ((= q pgdn) (scroll-down 10))
+    ((= q c-k) (setq buffer
+                (t2-remove-line buffer (car pos))))
+    ((= q pgup) (scroll-up 10))
     ((= q left) (setq pos (t2-dec-pos pos buffer)))
     ((= q right) (setq pos (t2-inc-pos pos buffer)))
     ((= q up) (setq pos (t2-prev-line pos buffer)))
     ((= q down) (setq pos (t2-next-line pos)))
-    ((= q (char-code #\Escape)) ; find what "end" is
+    ((= q 613) ; find what "end" is
      (setq pos (cons (1- (length buffer)) 0)))
     ((not (plusp q)) nothing) ;ignore keyup events
     ((/= 255 (logand 255 q)) ; modifier
@@ -84,8 +103,8 @@
 (defun t2-display (buffer pos)
   (let ((l (length buffer)))
     (set-cursor 0 0)
+    (set-text-wrap t)
     (set-text-color black white)
-    (set-text-wrap nil)
     (fill-screen white)
     (with-gfx (out)
       (let* ((vis (t2-n-lines-around 30 pos buffer))
