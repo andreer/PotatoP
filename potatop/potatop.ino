@@ -2,13 +2,17 @@
    David Johnson-Davies - www.technoblogy.com - 18th September 2022
    
    Licensed under the MIT license: https://opensource.org/licenses/MIT
+   
+   With some small modifications by @andreer
+   
+   Error handling code by @Goheeca and @mgr from
+   http://forum.ulisp.com/t/error-handling-in-ulisp/691/8
 */
 
 /*
 
  TODO:
-   - add remaining modifiers (ctrl/alt/super/fn) to keymap (see gdoc)
-   - ensure vcom is always toggled at min 1Hz
+   - ensure vcom is _always_ toggled at min 1Hz, to keep the display from degrading!
 
 */
 
@@ -67,7 +71,6 @@ MbedSPI mySPI(SHARP_MISO, SHARP_MOSI, SHARP_SCK); // declare the custom MbedSPI 
 MbedSPI mySPI0(6, 7, 5); // declare the custom MbedSPI object mySPI
 extern "C" SPIName spi_get_peripheral_name(PinName mosi, PinName miso, PinName sclk); // this mbed internal function determines the IOM module number for a set of pins
 
-//Adafruit_SharpMem tft(SHARP_SCK, SHARP_MOSI, SHARP_CS, 320, 240, SPI_FREQ);
 Adafruit_SharpMem tft(&mySPI, SHARP_CS, 320, 240, SPI_FREQ);
 #endif
 
@@ -83,6 +86,7 @@ uint32_t keyEventNum = 0;
 #define ROWS 8
 #define COLS 14
 #define DEBOUNCE_CYCLES 1 // doesn't really do much with how slow the scanning is ...
+                          // scanning is now faster, I should look into this again
 
 int rows[] = { 0, 1, 2, 45, 41, 17, 31, 16 };
 int cols[] = { 18, 19, 15, 26, 9, 10, 8, 14, 35, 4, 22, 23, 27, 28 };
@@ -5286,12 +5290,12 @@ object *fn_getkey (object *args, object *env) {
     return number(k);
   }
 
-  // andreer: Reduces power consumption when a program is waiting for input
+  // andreer: Reduces power consumption when a program is waiting for input in a loop
   am_hal_sysctrl_sleep(AM_HAL_SYSCTRL_DEEPSLEEP);
   return nil;
 }
 
-object *fn_peek (object *args, object *env) { // TODO andreer revert!
+object *fn_peek (object *args, object *env) {
   (void) env;
   int addr = checkinteger(PEEK, first(args));
   return number(*(int *)addr);
@@ -5349,7 +5353,7 @@ object *fn_subseql (object *args, object *env) {
     list = cdr(list);
   }
 
-  return res;
+  return res; // This is reversed, but there's another built-in to reverse so I didn't bother
 }
 
 // Built-in symbol names
@@ -7582,26 +7586,14 @@ void disableISR() {
   am_hal_ctimer_int_disable(AM_HAL_CTIMER_INT_TIMERA2);
 }
 
-void slowISR() {
-  int timerNum = 2;
-  // am_hal_ctimer_config_single(timerNum, AM_HAL_CTIMER_TIMERA,
-  //                             AM_HAL_CTIMER_LFRC_32HZ |
-  //                             AM_HAL_CTIMER_FN_REPEAT |
-  //                             AM_HAL_CTIMER_INT_ENABLE);
-
-  //  32 Hz = 1 tick on and 1 tick off, so the interrupt will trigger at 16Hz
-  am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 100, 100);
+void slowISR() { // This was an attempt to save power that will be revisited
+   int timerNum = 2;
+   am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 100, 100);
 }
 
 void unslowISR() {
-    int timerNum = 2;
-    // am_hal_ctimer_config_single(timerNum, AM_HAL_CTIMER_TIMERA,
-    //                           AM_HAL_CTIMER_LFRC_512HZ |
-    //                           AM_HAL_CTIMER_FN_REPEAT |
-    //                           AM_HAL_CTIMER_INT_ENABLE);
-
-  //  32 Hz = 1 tick on and 1 tick off, so the interrupt will trigger at 16Hz
-  am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 1, 1);
+   int timerNum = 2;
+   am_hal_ctimer_period_set(timerNum, AM_HAL_CTIMER_TIMERA, 1, 1);
 }
 
 void enableISR() {
@@ -7731,7 +7723,7 @@ void loop () {
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip
+  killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip. Comment this out to use serial.
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   #if defined(ULISP_WIFI)
