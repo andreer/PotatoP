@@ -1,6 +1,8 @@
 BUGS
 ----
 
+These are known bugs. There are probably more. I may get to fixing them one day!
+
 Stack overflow causes ulisp to hang:
 (defun fill () (fill) nil)
 
