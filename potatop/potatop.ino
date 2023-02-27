@@ -35,6 +35,7 @@
 #include <SPI.h>
 #include <Wire.h>
 #include <limits.h>
+#include "uxn.h"
 
 // Apollo3 specific stuff
 #include "BurstMode.h"
@@ -5313,13 +5314,155 @@ object *fn_peek (object *args, object *env) {
   // return number(42);
 }
 
+unsigned char fb_rom[] PROGMEM = {
+  0xa0, 0x14, 0x00, 0x86, 0x60, 0x00, 0x35, 0xa0, 0x20, 0x18, 0x17, 0x06,
+  0x80, 0x03, 0x60, 0x00, 0x27, 0x20, 0x00, 0x06, 0xa0, 0x01, 0x59, 0x60,
+  0x00, 0x34, 0x06, 0x80, 0x05, 0x60, 0x00, 0x18, 0x20, 0x00, 0x06, 0xa0,
+  0x01, 0x5e, 0x60, 0x00, 0x25, 0xa0, 0x0a, 0x18, 0x17, 0x01, 0x8a, 0x20,
+  0xff, 0xd1, 0x22, 0xa0, 0x01, 0x0f, 0x17, 0x00, 0x9b, 0x1a, 0x19, 0x6c,
+  0x80, 0x0a, 0x1b, 0x60, 0x00, 0x05, 0x80, 0x0a, 0x9b, 0x1a, 0x19, 0x80,
+  0x30, 0x18, 0x80, 0x18, 0x17, 0x6c, 0x94, 0x80, 0x18, 0x17, 0x21, 0x94,
+  0x20, 0xff, 0xf7, 0x22, 0x6c, 0x46, 0x69, 0x7a, 0x7a, 0x00, 0x42, 0x75,
+  0x7a, 0x7a
+};
+unsigned int fb_rom_len PROGMEM = 98;
+
+unsigned char primes_rom[] = {
+  0xa0, 0x00, 0x00, 0xa1, 0x26, 0x80, 0x1a, 0x0e, 0x80, 0x00, 0x08, 0x80,
+  0x08, 0x0d, 0x26, 0x80, 0x3b, 0x0e, 0xa0, 0x20, 0x18, 0x17, 0x21, 0xa9,
+  0x80, 0xe9, 0x0d, 0x22, 0x22, 0xa0, 0x01, 0x0f, 0x17, 0x00, 0x26, 0x80,
+  0x0b, 0x33, 0x80, 0x01, 0x3f, 0xa0, 0x00, 0x02, 0xab, 0x80, 0x18, 0x0d,
+  0xa0, 0x00, 0x00, 0x27, 0xbb, 0x3a, 0x39, 0x1d, 0x80, 0x00, 0x08, 0x80,
+  0x0a, 0x0d, 0x21, 0xaa, 0x80, 0xed, 0x0d, 0x22, 0x22, 0x80, 0x01, 0x6c,
+  0x22, 0x22, 0x80, 0x00, 0x6c, 0x04, 0x80, 0x00, 0x0e, 0x06, 0x80, 0x04,
+  0x1f, 0x80, 0x00, 0x0e, 0x80, 0x0f, 0x1c, 0x06, 0x80, 0x09, 0x0a, 0x80,
+  0x27, 0x1a, 0x18, 0x80, 0x30, 0x18, 0x80, 0x18, 0x17, 0x6c
+};
+unsigned int primes_rom_len = 106;
+
 object *fn_poke (object *args, object *env) {
-  (void) env;
-  int addr = checkinteger(POKE, first(args));
-  object *val = second(args);
-  *(int *)addr = checkinteger(POKE, val);
-  return val;
+  // (void) env;
+  // int addr = checkinteger(POKE, first(args));
+  // object *val = second(args);
+  // *(int *)addr = checkinteger(POKE, val);
+
+disableISR();
+  #define SUPPORT 0x1c03 /* devices mask */ // TODO andreer reduce to actually supported
+
+  Uxn u;
+
+
+  Uint8* amem = (Uint8 *)calloc(0x10300, sizeof(Uint8));
+
+  if(!uxn_boot(&u, amem, emu_dei, emu_deo)) {    
+		emu_error("Boot", "Failed");
+  }
+	
+  for(int i = 0; i < primes_rom_len; i++) {    
+    u.ram[0x100 + i] = primes_rom[i];
+  }
+
+  if(!uxn_eval(&u, PAGE_PROGRAM)) {
+    Serial.println();
+    Serial.print("UXN exit: ");
+		Serial.println(u.dev[0x0f] & 0x7f);
+  }
+  
+
+	// while(!u.dev[0x0f]) { // TODO andreer: Input handling
+	// 	int c = fgetc(stdin);
+	// 	if(c != EOF)
+	// 		console_input(&u, (Uint8)c);
+	// }
+  
+  free(u.ram);
+enableISR();
+  return NULL;
 }
+
+int
+emu_error(char *msg, const char *err)
+{
+	Serial.print("Error ");
+  Serial.print(msg);
+  Serial.print(": ");
+  Serial.println(err);
+	return 1;
+}
+
+int
+uxn_halt(Uxn *u, Uint8 instr, Uint8 err, Uint16 addr)
+{
+	Uint8 *d = &u->dev[0x00];
+	Uint16 handler = GETVEC(d);
+	if(handler) {
+		u->wst->ptr = 4;
+		u->wst->dat[0] = addr >> 0x8;
+		u->wst->dat[1] = addr & 0xff;
+		u->wst->dat[2] = instr;
+		u->wst->dat[3] = err;
+		return uxn_eval(u, handler);
+	} else {
+		// system_inspect(u);
+    Serial.println();
+    Serial.println("Error");
+		// fprintf(stderr, "%s %s, by %02x at 0x%04x.\n", (instr & 0x40) ? "Return-stack" : "Working-stack", errors[err - 1], instr, addr);
+	}
+	return 0;
+}
+
+int
+console_input(Uxn *u, char c)
+{
+	Uint8 *d = &u->dev[0x10];
+	d[0x02] = c;
+	return uxn_eval(u, GETVEC(d));
+}
+
+int last_uxn_refresh = 0;
+
+void
+console_deo(Uint8 *d, Uint8 port)
+{
+  if(tft.getCursorY() >= 240) {
+    tft.clearDisplayBuffer();
+    tft.setCursor(0, 0);
+  }
+  tft.write((char)d[port]);
+  if(last_uxn_refresh > 10) {
+    tft.refresh();
+    last_uxn_refresh = 0;
+  }
+  last_uxn_refresh++;
+}
+
+  
+Uint8
+emu_dei(Uxn *u, Uint8 addr)
+{
+	Uint8 p = addr & 0x0f, d = addr & 0xf0;
+	switch(d) {
+    Serial.println("Wanted to DEI, but no");
+	}
+	return u->dev[addr];
+}
+
+void
+emu_deo(Uxn *u, Uint8 addr, Uint8 v)
+{
+	Uint8 p = addr & 0x0f, d = addr & 0xf0;
+	Uint16 mask = 0x1 << (d >> 4);
+	u->dev[addr] = v;
+	switch(d) {
+	  case 0x10: console_deo(&u->dev[d], p); break;
+	}
+	// if(p == 0x01 && !(SUPPORT & mask))
+  //   Serial.println();
+	// 	Serial.print("Warning: Incompatible emulation, device ");
+  //   Serial.print(d);
+  //   Serial.println();
+}
+
 
 object *fn_subseql (object *args, object *env) {
   // not an elegant implementation, but much faster than an interpreted one
@@ -6703,7 +6846,7 @@ const tbl_entry_t lookup_table[] PROGMEM = {
   { mystring2, fn_getkey, 0x00, mydoc2 },
   { mystring3, fn_peek, 0x11, peekdoc },
   { mystring4, fn_poke, 0x22, pokedoc },
-  { mystring5, fn_subseql, 0x22, mydoc5 }
+  { mystring5, fn_subseql, 0x23, mydoc5 }
 };
 
 // Table lookup functions
@@ -7716,14 +7859,14 @@ void loop () {
     if (autorun == 12) autorunimage();
   }
   // Come here after error
-  delay(100); while (Serial.available()) Serial.read();
+  delay(100); while (Serial.available()) Serial.read(); 
   clrflag(NOESC); BreakLevel = 0;
   for (int i=0; i<TRACEMAX; i++) TraceDepth[i] = 0;
   #if defined(sdcardsupport)
   SDpfile.close(); SDgfile.close();
   #endif
   #if defined(lisplibrary)
-  killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip. Comment this out to use serial.
+  // killSerial(); // andreer: this reduces power use when unplugged - stops from backpowering serial chip. Comment this out to use serial.
   if (!tstflag(LIBRARYLOADED)) { setflag(LIBRARYLOADED); loadfromlibrary(NULL); }
   #endif
   #if defined(ULISP_WIFI)
